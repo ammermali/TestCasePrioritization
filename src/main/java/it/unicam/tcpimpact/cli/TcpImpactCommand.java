@@ -2,10 +2,8 @@ package it.unicam.tcpimpact.cli;
 import it.unicam.tcpimpact.git.GitRepositoryValidator;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
-
 import java.io.IOException;
 import java.nio.file.Path;
-import java.sql.SQLOutput;
 import java.util.List;
 import java.util.concurrent.Callable;
 import it.unicam.tcpimpact.git.ChangedJavaFile;
@@ -14,7 +12,6 @@ import it.unicam.tcpimpact.git.DiffExtractor;
 
 /**
  * Main command of the TCP Impact prototype.
- *
  * This command receives the path of a Git repository and two Git revisions
  * representing the range of changes to analyze. At this stage of the prototype,
  * the command only validates that the provided path points to a valid Git repository.
@@ -57,10 +54,8 @@ public class TcpImpactCommand implements Callable<Integer> {
 
     /**
      * Executes the command.
-     *
      * The method prints the received configuration, validates the repository
      * path, and returns an exit code compatible with command-line execution.
-     *
      * Note: at the moment, this method may raise an error in the terminal.
      * Ignore it, as it is related to the JGit logger and isn't influential
      * in any way for the prototype.
@@ -104,7 +99,39 @@ public class TcpImpactCommand implements Callable<Integer> {
         }
         System.out.println("Changed Java files:");
         for(ChangedJavaFile changedJavaFile : changedJavaFiles){
-            System.out.println("- " + changedJavaFile.path() + "changed lines: " + changedJavaFile.changedLines());
+            String ranges = formatLineRanges(changedJavaFile.changedLines());
+            System.out.println("- " + changedJavaFile.path() + "changed lines: " + ranges);
+        }
+    }
+
+    private String formatLineRanges(List<Integer> lines){
+        if(lines == null || lines.isEmpty()){
+            return "[]";
+        }
+        List<Integer> sortedLines = lines.stream().distinct().sorted().toList();
+        StringBuilder result = new StringBuilder();
+        int rangeStart = sortedLines.get(0);
+        int previousLine = sortedLines.get(0);
+        for(int i = 1; i < sortedLines.size(); i++){
+            int currentLine = sortedLines.get(i);
+            if(currentLine == previousLine + 1){
+                previousLine = currentLine;
+            } else {
+                appendRange(result,rangeStart, previousLine);
+                rangeStart = currentLine;
+                previousLine = currentLine;
+            }
+        }
+        appendRange(result, rangeStart, previousLine);
+        return result.toString();
+    }
+
+    private void appendRange(StringBuilder result, int rangeStart, int end) {
+        if(!result.isEmpty()){ result.append(", "); }
+        if(rangeStart == end) {
+            result.append(rangeStart);
+        } else{
+            result.append(rangeStart).append("-").append(end);
         }
     }
 }

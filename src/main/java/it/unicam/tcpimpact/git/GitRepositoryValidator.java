@@ -8,7 +8,6 @@ public class GitRepositoryValidator {
 
     /**
      * Checks whether the given path points to a valid Git repository.
-     *
      * The method accepts both repository root directories and directories
      * inside a Git work tree, because JGit is able to search for the associated
      * .git directory.
