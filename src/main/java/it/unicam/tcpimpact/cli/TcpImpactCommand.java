@@ -2,8 +2,14 @@ package it.unicam.tcpimpact.cli;
 import it.unicam.tcpimpact.git.GitRepositoryValidator;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
+
+import java.io.IOException;
 import java.nio.file.Path;
+import java.sql.SQLOutput;
+import java.util.List;
 import java.util.concurrent.Callable;
+import it.unicam.tcpimpact.git.ChangedJavaFile;
+import it.unicam.tcpimpact.git.DiffExtractor;
 
 
 /**
@@ -59,7 +65,7 @@ public class TcpImpactCommand implements Callable<Integer> {
      * Ignore it, as it is related to the JGit logger and isn't influential
      * in any way for the prototype.
      *
-     * @return 0 if the repository is valid, 1 otherwise
+     * @return 0 if the repository is valid, 1 otherwise (CLI exit code)
      */
     @Override
     public Integer call(){
@@ -77,6 +83,28 @@ public class TcpImpactCommand implements Callable<Integer> {
 
         System.out.println("Git repository validated");
 
-        return 0;
+        DiffExtractor diffExtractor = new DiffExtractor();
+
+        try {
+            List<ChangedJavaFile> changedJavaFiles = diffExtractor.extractChangedJavaFiles(repoPath, baseRevision, headRevision);
+            printChangedJavaFiles(changedJavaFiles);
+            return 0;
+        } catch (IOException e) {
+            System.err.println("Error: Unable to extract Git diff.");
+            System.err.println(e.getMessage());
+            return 1;
+        }
+    }
+
+    private void printChangedJavaFiles(List<ChangedJavaFile> changedJavaFiles) {
+        System.out.println();
+        if(changedJavaFiles.isEmpty()){
+            System.out.println("No changed Java files found.");
+            return;
+        }
+        System.out.println("Changed Java files:");
+        for(ChangedJavaFile changedJavaFile : changedJavaFiles){
+            System.out.println("- " + changedJavaFile.path() + "changed lines: " + changedJavaFile.changedLines());
+        }
     }
 }
