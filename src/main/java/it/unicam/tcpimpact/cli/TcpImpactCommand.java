@@ -1,4 +1,6 @@
 package it.unicam.tcpimpact.cli;
+import it.unicam.tcpimpact.coverage.PerTestCoverageRunner;
+import it.unicam.tcpimpact.coverage.TestCaseId;
 import it.unicam.tcpimpact.git.GitRepositoryValidator;
 import it.unicam.tcpimpact.model.ChangedMethod;
 import it.unicam.tcpimpact.model.MethodId;
@@ -60,6 +62,21 @@ public class TcpImpactCommand implements Callable<Integer> {
     )
     private String headRevision;
 
+    // the project path might differ from the repo path
+    @Option(
+            names = "--project-path",
+            defaultValue = ".",
+            description = "Path of the Java project inside the Git repository."
+    )
+    private Path projectPath;
+
+    // option to coverage all present tests in a project
+    @Option(
+            names = "--coverage-all-tests",
+            description = "Runs each discovered JUnit test separately and generates one JaCoCo report per test."
+    )
+    private boolean coverageAllTests;
+
     /**
      * Executes the command.
      * The method prints the received configuration, validates the repository
@@ -86,6 +103,8 @@ public class TcpImpactCommand implements Callable<Integer> {
         }
 
         System.out.println("Git repository validated");
+
+        if(coverageAllTests){ return runPerTestCoverageMode(); }
 
         DiffExtractor diffExtractor = new DiffExtractor();
 
@@ -231,6 +250,23 @@ public class TcpImpactCommand implements Callable<Integer> {
         for(ChangedMethod changedMethod : changedMethods){
             String changedLineRanges = formatLineRanges(changedMethod.changedLines());
             System.out.println("- " + changedMethod.methodRange().methodId() + " in " + changedMethod.methodRange().path() + " changed lines: " + changedLineRanges);
+        }
+    }
+
+    private Integer runPerTestCoverageMode() {
+        PerTestCoverageRunner runner = new PerTestCoverageRunner();
+        try {
+            Map<TestCaseId, Path> reports = runner.runCoverageForAllTests(repoPath, projectPath);
+            System.out.println();
+            System.out.println("JaCoCo per-test reports generated:");
+            for(Map.Entry<TestCaseId, Path> entry : reports.entrySet()){
+                System.out.println("- " + entry.getKey() + " -> " + entry.getValue());
+            }
+            return 0;
+        } catch (Exception e){
+            System.err.println("Unable to run per-test coverage.");
+            System.err.println(e.getMessage());
+            return 1;
         }
     }
 
