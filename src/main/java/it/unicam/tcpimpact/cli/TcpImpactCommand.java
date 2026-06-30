@@ -1,9 +1,14 @@
 package it.unicam.tcpimpact.cli;
 import it.unicam.tcpimpact.git.GitRepositoryValidator;
+import it.unicam.tcpimpact.model.ChangedMethod;
+import it.unicam.tcpimpact.model.MethodRange;
+import it.unicam.tcpimpact.parser.ChangedMethodDetector;
+import it.unicam.tcpimpact.parser.MethodExtractor;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
 import it.unicam.tcpimpact.git.ChangedJavaFile;
@@ -30,7 +35,7 @@ public class TcpImpactCommand implements Callable<Integer> {
 
     // Path to the repo that will be analyzed
     @Option(
-            names = "--repo",
+            names = "--repo", // local repo path
             required = true,
             description = "Path to the Git repository to analyze."
     )
@@ -63,7 +68,7 @@ public class TcpImpactCommand implements Callable<Integer> {
      * @return 0 if the repository is valid, 1 otherwise (CLI exit code)
      */
     @Override
-    public Integer call(){
+    public Integer call() throws Exception {
         System.out.println("TCP Impact prototype");
         System.out.println("Repo: " + repoPath.toAbsolutePath());
         System.out.println("Base: " + baseRevision);
@@ -83,6 +88,8 @@ public class TcpImpactCommand implements Callable<Integer> {
         try {
             List<ChangedJavaFile> changedJavaFiles = diffExtractor.extractChangedJavaFiles(repoPath, baseRevision, headRevision);
             printChangedJavaFiles(changedJavaFiles);
+            List<ChangedMethod> changedMethods = detectChangedMethods(changedJavaFiles);
+            printChangedMethods(changedMethods);
             return 0;
         } catch (IOException e) {
             System.err.println("Error: Unable to extract Git diff.");
@@ -100,7 +107,7 @@ public class TcpImpactCommand implements Callable<Integer> {
         System.out.println("Changed Java files:");
         for(ChangedJavaFile changedJavaFile : changedJavaFiles){
             String ranges = formatLineRanges(changedJavaFile.changedLines());
-            System.out.println("- " + changedJavaFile.path() + "changed lines: " + ranges);
+            System.out.println("- " + changedJavaFile.path() + " changed lines: " + ranges);
         }
     }
 
@@ -134,4 +141,34 @@ public class TcpImpactCommand implements Callable<Integer> {
             result.append(rangeStart).append("-").append(end);
         }
     }
+
+    private List<ChangedMethod> detectChangedMethods(List<ChangedJavaFile> changedJavaFiles) throws Exception {
+        MethodExtractor extractor = new MethodExtractor();
+        ChangedMethodDetector changedMethodDetector = new ChangedMethodDetector();
+
+        List<ChangedMethod> allChangedMethods = new ArrayList<>();
+
+        for(ChangedJavaFile changedJavaFile : changedJavaFiles){
+            Path absolutePath = repoPath.toAbsolutePath().normalize().resolve(changedJavaFile.path()).normalize();
+            List<MethodRange> methodRanges = extractor.extractMethods(absolutePath, changedJavaFile.path());
+            List<ChangedMethod> changedMethods = changedMethodDetector.detectChangedMethods(changedJavaFile, methodRanges);
+            allChangedMethods.addAll(changedMethods);
+        }
+        return allChangedMethods;
+    }
+
+    private void printChangedMethods(List<ChangedMethod> changedMethods){
+        System.out.println();
+
+        if(changedMethods.isEmpty()){
+            System.out.println("No changed Java files found.");
+            return;
+        }
+        System.out.println("Changed Java methods:");
+        for(ChangedMethod changedMethod : changedMethods){
+            String changedLineRanges = formatLineRanges(changedMethod.changedLines());
+            System.out.println("- " + changedMethod.methodRange().methodId() + " in " + changedMethod.methodRange().path() + " changed lines: " + changedLineRanges);
+        }
+    }
+
 }
