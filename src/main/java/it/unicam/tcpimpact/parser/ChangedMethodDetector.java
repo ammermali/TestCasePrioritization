@@ -1,5 +1,4 @@
 package it.unicam.tcpimpact.parser;
-import it.unicam.tcpimpact.git.ChangedJavaFile;
 import it.unicam.tcpimpact.model.ChangedMethod;
 import it.unicam.tcpimpact.model.MethodRange;
 import java.util.ArrayList;
@@ -10,16 +9,16 @@ public class ChangedMethodDetector {
     /**
      * Detects changed methods by intersecting changed lines with method ranges.
      *
-     * @param changedJavaFile changed Java file with changed line numbers
+     * @param changedLines changed line numbers for one revision side
      * @param methodRanges methods declared in the same Java file
      * @return list of methods affected by the change
      */
 
-    public List<ChangedMethod> detectChangedMethods(ChangedJavaFile changedJavaFile, List<MethodRange> methodRanges) {
-        List<ChangedMethod> changedMethods = new ArrayList<ChangedMethod>();
+    public List<ChangedMethod> detectChangedMethods(List<Integer> changedLines, List<MethodRange> methodRanges) {
+        List<ChangedMethod> changedMethods = new ArrayList<>();
 
         for(MethodRange methodRange : methodRanges) {
-            List<Integer> changedLinesInsideMethod = findChangedLinesInsideMethod(changedJavaFile.changedLines(), methodRange);
+            List<Integer> changedLinesInsideMethod = findChangedLinesInsideMethod(changedLines, methodRange);
             if(!changedLinesInsideMethod.isEmpty()) {
                 ChangedMethod changedMethod = new ChangedMethod(methodRange, changedLinesInsideMethod);
                 changedMethods.add(changedMethod);

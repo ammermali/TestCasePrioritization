@@ -1,5 +1,4 @@
 package it.unicam.tcpimpact.model;
-import java.nio.file.Path;
 import java.util.List;
 
 /**

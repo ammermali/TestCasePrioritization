@@ -1,15 +1,18 @@
 package it.unicam.tcpimpact.cli;
 import it.unicam.tcpimpact.git.GitRepositoryValidator;
 import it.unicam.tcpimpact.model.ChangedMethod;
+import it.unicam.tcpimpact.model.MethodId;
 import it.unicam.tcpimpact.model.MethodRange;
 import it.unicam.tcpimpact.parser.ChangedMethodDetector;
-import it.unicam.tcpimpact.parser.MethodExtractor;
+import it.unicam.tcpimpact.parser.RevisionMethodExtractor;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import it.unicam.tcpimpact.git.ChangedJavaFile;
 import it.unicam.tcpimpact.git.DiffExtractor;
@@ -18,15 +21,15 @@ import it.unicam.tcpimpact.git.DiffExtractor;
 /**
  * Main command of the TCP Impact prototype.
  * This command receives the path of a Git repository and two Git revisions
- * representing the range of changes to analyze. At this stage of the prototype,
- * the command only validates that the provided path points to a valid Git repository.
+ * representing the range of changes to analyze, then prints the Java methods
+ * affected by those changes.
  */
 
 @Command(
         name = "tcp-impact",
         mixinStandardHelpOptions = true,
         version = "tcp-impact 0.1.0",
-        description = "Prototype tool for Git-aware test case prioritizatin"
+        description = "Prototype tool for Git-aware test case prioritization"
 )
 
 
@@ -60,12 +63,13 @@ public class TcpImpactCommand implements Callable<Integer> {
     /**
      * Executes the command.
      * The method prints the received configuration, validates the repository
-     * path, and returns an exit code compatible with command-line execution.
+     * path, detects changed Java methods, and returns an exit code compatible
+     * with command-line execution.
      * Note: at the moment, this method may raise an error in the terminal.
      * Ignore it, as it is related to the JGit logger and isn't influential
      * in any way for the prototype.
      *
-     * @return 0 if the repository is valid, 1 otherwise (CLI exit code)
+     * @return 0 if the analysis succeeds, 1 otherwise (CLI exit code)
      */
     @Override
     public Integer call() throws Exception {
@@ -106,9 +110,23 @@ public class TcpImpactCommand implements Callable<Integer> {
         }
         System.out.println("Changed Java files:");
         for(ChangedJavaFile changedJavaFile : changedJavaFiles){
-            String ranges = formatLineRanges(changedJavaFile.changedLines());
-            System.out.println("- " + changedJavaFile.path() + " changed lines: " + ranges);
+            String baseLines = formatLineRanges(changedJavaFile.changedLinesInBase());
+            String headLines = formatLineRanges(changedJavaFile.changedLinesInHead());
+            System.out.println("- " + formatChangedPath(changedJavaFile) + " base lines: " + baseLines + ", head lines: " + headLines);
         }
+    }
+
+    private String formatChangedPath(ChangedJavaFile changedJavaFile){
+        if(changedJavaFile.oldPath() == null){
+            return changedJavaFile.newPath() + " (added)";
+        }
+        if(changedJavaFile.newPath() == null){
+            return changedJavaFile.oldPath() + " (deleted)";
+        }
+        if(!changedJavaFile.oldPath().equals(changedJavaFile.newPath())){
+            return changedJavaFile.oldPath() + " -> " + changedJavaFile.newPath();
+        }
+        return changedJavaFile.newPath().toString();
     }
 
     private String formatLineRanges(List<Integer> lines){
@@ -143,25 +161,70 @@ public class TcpImpactCommand implements Callable<Integer> {
     }
 
     private List<ChangedMethod> detectChangedMethods(List<ChangedJavaFile> changedJavaFiles) throws Exception {
-        MethodExtractor extractor = new MethodExtractor();
+        RevisionMethodExtractor extractor = new RevisionMethodExtractor();
         ChangedMethodDetector changedMethodDetector = new ChangedMethodDetector();
 
-        List<ChangedMethod> allChangedMethods = new ArrayList<>();
+        Map<MethodId, ChangedMethod> allChangedMethods = new LinkedHashMap<>();
 
         for(ChangedJavaFile changedJavaFile : changedJavaFiles){
-            Path absolutePath = repoPath.toAbsolutePath().normalize().resolve(changedJavaFile.path()).normalize();
-            List<MethodRange> methodRanges = extractor.extractMethods(absolutePath, changedJavaFile.path());
-            List<ChangedMethod> changedMethods = changedMethodDetector.detectChangedMethods(changedJavaFile, methodRanges);
-            allChangedMethods.addAll(changedMethods);
+            detectChangedMethods(
+                    changedJavaFile.oldPath(),
+                    baseRevision,
+                    changedJavaFile.changedLinesInBase(),
+                    extractor,
+                    changedMethodDetector,
+                    allChangedMethods
+            );
+            detectChangedMethods(
+                    changedJavaFile.newPath(),
+                    headRevision,
+                    changedJavaFile.changedLinesInHead(),
+                    extractor,
+                    changedMethodDetector,
+                    allChangedMethods
+            );
         }
-        return allChangedMethods;
+        return new ArrayList<>(allChangedMethods.values());
+    }
+
+    private void detectChangedMethods(
+            Path filePath,
+            String revision,
+            List<Integer> changedLines,
+            RevisionMethodExtractor extractor,
+            ChangedMethodDetector changedMethodDetector,
+            Map<MethodId, ChangedMethod> allChangedMethods
+    ) throws IOException {
+        if(filePath == null || changedLines.isEmpty()){
+            return;
+        }
+
+        List<MethodRange> methodRanges = extractor.extractMethodsAtRevision(repoPath, revision, filePath);
+        List<ChangedMethod> changedMethods = changedMethodDetector.detectChangedMethods(changedLines, methodRanges);
+        for(ChangedMethod changedMethod : changedMethods){
+            addChangedMethod(allChangedMethods, changedMethod);
+        }
+    }
+
+    private void addChangedMethod(Map<MethodId, ChangedMethod> allChangedMethods, ChangedMethod changedMethod){
+        MethodId methodId = changedMethod.methodRange().methodId();
+        ChangedMethod existingMethod = allChangedMethods.get(methodId);
+        if(existingMethod == null){
+            allChangedMethods.put(methodId, changedMethod);
+            return;
+        }
+
+        List<Integer> mergedLines = new ArrayList<>();
+        mergedLines.addAll(existingMethod.changedLines());
+        mergedLines.addAll(changedMethod.changedLines());
+        allChangedMethods.put(methodId, new ChangedMethod(existingMethod.methodRange(), mergedLines.stream().distinct().sorted().toList()));
     }
 
     private void printChangedMethods(List<ChangedMethod> changedMethods){
         System.out.println();
 
         if(changedMethods.isEmpty()){
-            System.out.println("No changed Java files found.");
+            System.out.println("No changed Java methods found.");
             return;
         }
         System.out.println("Changed Java methods:");

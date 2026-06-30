@@ -5,7 +5,9 @@ import java.util.List;
 /**
  * Represents a Java source file affected by a Git change.
  *
- * @param path path of the changed Java file, relatively to the root of the analyzed repo
- * @param changedLines line numbers changed in the head revision
+ * @param oldPath path of the original Java file, relative to the root of the analyzed repo
+ * @param newPath path of the changed Java file, relative to the root of the analyzed repo
+ * @param changedLinesInBase changed line numbers in the base revision
+ * @param changedLinesInHead changed line numbers in the head revision
  */
-public record ChangedJavaFile(Path path, List<Integer> changedLines) {}
+public record ChangedJavaFile(Path oldPath, Path newPath, List<Integer> changedLinesInBase, List<Integer> changedLinesInHead) {}

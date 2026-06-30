@@ -51,10 +51,7 @@ public class DiffExtractor {
                 if(!isSupportedJavaChange(entry)) { continue; }
 
                 FileHeader fileHeader = diffFormatter.toFileHeader(entry);
-                Path filePath = Path.of(entry.getNewPath());
-                List<Integer> changedLines = extractChangedLines(fileHeader);
-
-                ChangedJavaFile changedJavaFile = new ChangedJavaFile(filePath, changedLines);
+                ChangedJavaFile changedJavaFile = createChangedJavaFile(entry, fileHeader);
                 changedJavaFiles.add(changedJavaFile);
             }
             return changedJavaFiles;
@@ -69,7 +66,7 @@ public class DiffExtractor {
      * Opens the Git repository located at the given path.
      *
      * @param path path to the repository in the work tree
-     * @return openeed JGit repository
+     * @return opened JGit repository
      * @throws IOException if the repository cannot be opened
      */
 
@@ -88,7 +85,7 @@ public class DiffExtractor {
      */
 
     private ObjectId resolveCommit(Repository repository, String revision) throws IOException {
-        ObjectId commitId = repository.resolve(revision);
+        ObjectId commitId = repository.resolve(revision + "^{commit}");
         if(commitId == null){ throw new IllegalArgumentException("Cannot resolve Git revision: " + revision); }
         return commitId;
     }
@@ -101,25 +98,44 @@ public class DiffExtractor {
      */
 
     private boolean isSupportedJavaChange(DiffEntry entry){
-        return entry.getChangeType() != DiffEntry.ChangeType.DELETE
-                && entry.getNewPath() != null
-                && entry.getNewPath().endsWith(".java");
+        return isJavaPath(entry.getOldPath()) || isJavaPath(entry.getNewPath());
     }
 
-    /**
-     * Extracts changed line numbers from a file diff.
-     *
-     * @param fileHeader diff header of a changed file
-     * @return sorted list of changed line numbers in the head revision
-     */
+    private boolean isJavaPath(String path){
+        return path != null
+                && !DiffEntry.DEV_NULL.equals(path)
+                && path.endsWith(".java");
+    }
 
-    private List<Integer> extractChangedLines(FileHeader fileHeader){
-        Set<Integer> changedLines = new TreeSet<>();
-        for(Edit edit: fileHeader.toEditList()){
-            for(int line = edit.getBeginB(); line < edit.getEndB(); line++){
-                changedLines.add(line+1); // JGit uses zero-indexed lines internally.
-            }
+    private ChangedJavaFile createChangedJavaFile(DiffEntry entry, FileHeader fileHeader){
+        Path oldPath = toPathOrNull(entry.getOldPath());
+        Path newPath = toPathOrNull(entry.getNewPath());
+        Set<Integer> changedLinesInBase = new TreeSet<>();
+        Set<Integer> changedLinesInHead = new TreeSet<>();
+
+        for(Edit edit : fileHeader.toEditList()){
+            addLineNumbers(changedLinesInBase, edit.getBeginA(), edit.getEndA());
+            addLineNumbers(changedLinesInHead, edit.getBeginB(), edit.getEndB());
         }
-        return new ArrayList<>(changedLines);
+
+        return new ChangedJavaFile(
+                oldPath,
+                newPath,
+                new ArrayList<>(changedLinesInBase),
+                new ArrayList<>(changedLinesInHead)
+        );
+    }
+
+    private Path toPathOrNull(String gitPath){
+        if(gitPath == null || DiffEntry.DEV_NULL.equals(gitPath)){
+            return null;
+        }
+        return Path.of(gitPath);
+    }
+
+    private void addLineNumbers(Set<Integer> changedLines, int begin, int end){
+        for(int line = begin + 1; line <= end; line++){
+            changedLines.add(line);
+        }
     }
 }

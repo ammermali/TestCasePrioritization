@@ -10,7 +10,6 @@ import com.github.javaparser.ast.nodeTypes.NodeWithName;
 import it.unicam.tcpimpact.model.MethodId;
 import it.unicam.tcpimpact.model.MethodRange;
 
-import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -22,27 +21,51 @@ public class MethodExtractor {
 
     public MethodExtractor(){
         ParserConfiguration parserConfiguration = new ParserConfiguration();
-        parserConfiguration.setLanguageLevel(ParserConfiguration.LanguageLevel.CURRENT);
+        parserConfiguration.setLanguageLevel(ParserConfiguration.LanguageLevel.JAVA_21);
         this.javaParser = new JavaParser(parserConfiguration);
     }
 
     /**
      * Extracts all methods and constructors declared in the given Java file.
      *
-     * @param absoluteFilePath absolute path of the Java source file
+     * @param sourceCode Java source code
      * @param relativeFilePath path of the Java source file relative to the repository root
      * @return list of method ranges found in the file
-     * @throws IOException if the file cannot be read
      */
-    public List<MethodRange> extractMethods(Path absoluteFilePath, Path relativeFilePath) throws IOException {
-        CompilationUnit compilationUnit = parseCompilationUnit(absoluteFilePath);
+    public List<MethodRange> extractMethods(String sourceCode, Path relativeFilePath) {
+        CompilationUnit compilationUnit = parseCompilationUnit(sourceCode, relativeFilePath.toString());
+        return extractMethodsFromCompilationUnit(compilationUnit, relativeFilePath);
+    }
+
+    private CompilationUnit parseCompilationUnit(String sourceCode, String sourceName) {
+        ParseResult<CompilationUnit> parseResult = javaParser.parse(ParseStart.COMPILATION_UNIT, Providers.provider(sourceCode));
+        if(parseResult.isSuccessful() && parseResult.getResult().isPresent()){
+            return parseResult.getResult().get();
+        }
+        throw new IllegalArgumentException("Cannot parse Java source: " + sourceName + " \n " + parseResult.getProblems());
+    }
+
+    private List<MethodRange> extractMethodsFromCompilationUnit(CompilationUnit compilationUnit, Path path) {
         String packageName = compilationUnit.getPackageDeclaration().map(NodeWithName::getNameAsString).orElse("");
         List<MethodRange> methodRanges = new ArrayList<>();
-
-        for(MethodDeclaration methodDeclaration : compilationUnit.findAll(MethodDeclaration.class)){
+        for(MethodDeclaration methodDeclaration : compilationUnit.findAll(MethodDeclaration.class)) {
             methodDeclaration.getRange().ifPresent(range -> {
                 MethodId methodId = new MethodId(packageName, resolveClassName(methodDeclaration), methodDeclaration.getNameAsString(), extractParametersTypes(methodDeclaration.getParameters()));
-                MethodRange methodRange = new MethodRange(methodId, relativeFilePath, range.begin.line, range.end.line);
+                MethodRange methodRange = new MethodRange(methodId, path, range.begin.line, range.end.line);
+                methodRanges.add(methodRange);
+            });
+        }
+        for(ConstructorDeclaration constructorDeclaration : compilationUnit.findAll(ConstructorDeclaration.class)) {
+            constructorDeclaration.getRange().ifPresent(range -> {
+                MethodId methodId = new MethodId(packageName, resolveClassName(constructorDeclaration), constructorDeclaration.getNameAsString(), extractParametersTypes(constructorDeclaration.getParameters()));
+                MethodRange methodRange = new MethodRange(methodId, path, range.begin.line, range.end.line);
+                methodRanges.add(methodRange);
+            });
+        }
+        for(CompactConstructorDeclaration compactConstructorDeclaration : compilationUnit.findAll(CompactConstructorDeclaration.class)) {
+            compactConstructorDeclaration.getRange().ifPresent(range -> {
+                MethodId methodId = new MethodId(packageName, resolveClassName(compactConstructorDeclaration), compactConstructorDeclaration.getNameAsString(), List.of());
+                MethodRange methodRange = new MethodRange(methodId, path, range.begin.line, range.end.line);
                 methodRanges.add(methodRange);
             });
         }
@@ -56,12 +79,12 @@ public class MethodExtractor {
         while(currentNode.getParentNode().isPresent()){
             currentNode = currentNode.getParentNode().get();
 
-            if(currentNode instanceof ClassOrInterfaceDeclaration classDeclaration){
-                classNames.add(classDeclaration.getNameAsString());
-            }else if(currentNode instanceof EnumDeclaration enumDeclaration){
-                classNames.add(enumDeclaration.getNameAsString());
-            }else if (currentNode instanceof RecordDeclaration recordDeclaration){
-                classNames.add(recordDeclaration.getNameAsString());
+            switch (currentNode) {
+                case ClassOrInterfaceDeclaration classDeclaration -> classNames.add(classDeclaration.getNameAsString());
+                case EnumDeclaration enumDeclaration -> classNames.add(enumDeclaration.getNameAsString());
+                case RecordDeclaration recordDeclaration -> classNames.add(recordDeclaration.getNameAsString());
+                default -> {
+                }
             }
         }
         Collections.reverse(classNames);
@@ -70,16 +93,7 @@ public class MethodExtractor {
 
     private List<String> extractParametersTypes(NodeList<Parameter> parameters) {
         List<String> parameterTypes = new ArrayList<>();
-        for(Parameter parameter : parameters){ parameterTypes.add(parameter.getNameAsString());}
+        for(Parameter parameter : parameters){ parameterTypes.add(parameter.getType().asString());}
         return parameterTypes;
     }
-
-    private CompilationUnit parseCompilationUnit(Path absoluteFilePath) throws IOException {
-        ParseResult<CompilationUnit> parseResult = javaParser.parse(ParseStart.COMPILATION_UNIT, Providers.provider(absoluteFilePath));
-        if(parseResult.isSuccessful() && parseResult.getResult().isPresent()){
-            return parseResult.getResult().get();
-        }
-        throw new IllegalArgumentException("Cannot parse Java file: " + absoluteFilePath + "\n" + parseResult.getProblems());
-    }
-
 }
