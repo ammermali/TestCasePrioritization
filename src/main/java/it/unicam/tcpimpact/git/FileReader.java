@@ -24,23 +24,22 @@ public class FileReader {
      */
     public String readFileAtRevision(Path path, String revision, Path filePath) throws IOException {
         Repository repository = openRepository(path);
-        RevWalk revWalk = new RevWalk(repository);
-        try{
+
+        try (repository; RevWalk revWalk = new RevWalk(repository)) {
+
             ObjectId commitId = resolveCommit(repository, revision);
             RevCommit commit = revWalk.parseCommit(commitId);
             String gitPath = filePath.toString().replace("\\", "/");
 
-            try(TreeWalk treewalk = TreeWalk.forPath(repository, gitPath, commit.getTree())){
-                if(treewalk == null){
+            try (TreeWalk treewalk = TreeWalk.forPath(repository, gitPath, commit.getTree())) {
+                if (treewalk == null)
                     throw new IllegalArgumentException("File not found at revision " + revision + ": " + filePath);
-                }
+
                 ObjectId objectId = treewalk.getObjectId(0);
                 ObjectLoader loader = repository.open(objectId);
+
                 return new String(loader.getBytes(), StandardCharsets.UTF_8);
             }
-        } finally {
-            revWalk.close();
-            repository.close();
         }
     }
 
@@ -50,7 +49,8 @@ public class FileReader {
 
     private ObjectId resolveCommit(Repository repository, String revision) throws IOException {
         ObjectId commitId = repository.resolve(revision + "^{commit}");
-        if(commitId == null){ throw new IllegalArgumentException("Cannot resolve Git revision: " + revision); }
+        if(commitId == null)
+            throw new IllegalArgumentException("Cannot resolve Git revision: " + revision);
         return commitId;
     }
 }

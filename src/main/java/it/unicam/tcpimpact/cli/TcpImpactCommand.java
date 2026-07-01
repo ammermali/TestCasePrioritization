@@ -154,17 +154,15 @@ public class TcpImpactCommand implements Callable<Integer> {
         }
         List<Integer> sortedLines = lines.stream().distinct().sorted().toList();
         StringBuilder result = new StringBuilder();
-        int rangeStart = sortedLines.get(0);
-        int previousLine = sortedLines.get(0);
+        int rangeStart = sortedLines.getFirst();
+        int previousLine = sortedLines.getFirst();
         for(int i = 1; i < sortedLines.size(); i++){
             int currentLine = sortedLines.get(i);
-            if(currentLine == previousLine + 1){
-                previousLine = currentLine;
-            } else {
-                appendRange(result,rangeStart, previousLine);
+            if (currentLine != previousLine + 1) {
+                appendRange(result, rangeStart, previousLine);
                 rangeStart = currentLine;
-                previousLine = currentLine;
             }
+            previousLine = currentLine;
         }
         appendRange(result, rangeStart, previousLine);
         return result.toString();

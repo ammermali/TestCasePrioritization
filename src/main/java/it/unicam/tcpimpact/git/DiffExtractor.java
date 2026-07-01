@@ -30,10 +30,8 @@ public class DiffExtractor {
 
     public List<ChangedJavaFile> extractChangedJavaFiles(Path path, String baseRevision, String headRevision) throws IOException {
         Repository repository = openRepository(path);
-        RevWalk revWalk = new RevWalk(repository);
-        DiffFormatter diffFormatter = new DiffFormatter(DisabledOutputStream.INSTANCE);
 
-        try {
+        try (repository; RevWalk revWalk = new RevWalk(repository); DiffFormatter diffFormatter = new DiffFormatter(DisabledOutputStream.INSTANCE)) {
             ObjectId baseCommitId = resolveCommit(repository, baseRevision);
             ObjectId headCommitId = resolveCommit(repository, headRevision);
 
@@ -47,18 +45,16 @@ public class DiffExtractor {
             List<DiffEntry> diffEntries = diffFormatter.scan(baseCommit.getTree(), headCommit.getTree());
             List<ChangedJavaFile> changedJavaFiles = new ArrayList<>();
 
-            for(DiffEntry entry : diffEntries){
-                if(!isSupportedJavaChange(entry)) { continue; }
+            for (DiffEntry entry : diffEntries) {
+                if (!isSupportedJavaChange(entry))
+                    continue;
 
                 FileHeader fileHeader = diffFormatter.toFileHeader(entry);
                 ChangedJavaFile changedJavaFile = createChangedJavaFile(entry, fileHeader);
                 changedJavaFiles.add(changedJavaFile);
             }
+
             return changedJavaFiles;
-        } finally {
-            diffFormatter.close();
-            revWalk.close();
-            repository.close();
         }
     }
 
@@ -134,8 +130,8 @@ public class DiffExtractor {
     }
 
     private void addLineNumbers(Set<Integer> changedLines, int begin, int end){
-        for(int line = begin + 1; line <= end; line++){
-            changedLines.add(line);
+        for(int line = begin; line <= end; line++){
+            changedLines.add(line + 1);
         }
     }
 }
