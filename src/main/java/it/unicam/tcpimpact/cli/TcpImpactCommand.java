@@ -1,7 +1,13 @@
 package it.unicam.tcpimpact.cli;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import it.unicam.tcpimpact.coverage.PerTestCoverageRunner;
 import it.unicam.tcpimpact.coverage.TestCaseId;
 import it.unicam.tcpimpact.git.GitRepositoryValidator;
+import it.unicam.tcpimpact.graph.CallGraphBuilder;
+import it.unicam.tcpimpact.graph.ImpactGraphBuilder;
+import it.unicam.tcpimpact.graph.ParserFactory;
+import it.unicam.tcpimpact.graph.model.ImpactGraph;
+import it.unicam.tcpimpact.graph.model.MethodCallGraph;
 import it.unicam.tcpimpact.model.ChangedMethod;
 import it.unicam.tcpimpact.model.MethodId;
 import it.unicam.tcpimpact.model.MethodRange;
@@ -10,6 +16,7 @@ import it.unicam.tcpimpact.parser.RevisionMethodExtractor;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -37,6 +44,7 @@ import it.unicam.tcpimpact.git.DiffExtractor;
 
 
 public class TcpImpactCommand implements Callable<Integer> {
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     // Path to the repo that will be analyzed
     @Option(
@@ -77,6 +85,13 @@ public class TcpImpactCommand implements Callable<Integer> {
     )
     private boolean coverageAllTests;
 
+    // option to build and export the project impact graph
+    @Option(
+            names = "--impact-graph-output",
+            description = "Builds the project impact graph and saves it as JSON inside the analyzed project's .tcpimpact directory."
+    )
+    private Path impactGraphOutput;
+
     /**
      * Executes the command.
      * The method prints the received configuration, validates the repository
@@ -105,6 +120,7 @@ public class TcpImpactCommand implements Callable<Integer> {
         System.out.println("Git repository validated");
 
         if(coverageAllTests){ return runPerTestCoverageMode(); }
+        if(impactGraphOutput != null){ return runImpactGraphExportMode(); }
 
         DiffExtractor diffExtractor = new DiffExtractor();
 
@@ -256,7 +272,7 @@ public class TcpImpactCommand implements Callable<Integer> {
         try {
             Map<TestCaseId, Path> reports = runner.runCoverageForAllTests(repoPath, projectPath);
             System.out.println();
-            System.out.println("JaCoCo per-test reports generated:");
+            System.out.println("JaCoCo per-test reports available:");
             for(Map.Entry<TestCaseId, Path> entry : reports.entrySet()){
                 System.out.println("- " + entry.getKey() + " -> " + entry.getValue());
             }
@@ -266,6 +282,71 @@ public class TcpImpactCommand implements Callable<Integer> {
             System.err.println(e.getMessage());
             return 1;
         }
+    }
+
+    private Integer runImpactGraphExportMode() {
+        try {
+            ParserFactory parserFactory = new ParserFactory();
+            MethodCallGraph callGraph = new CallGraphBuilder(parserFactory).build(repoPath, projectPath);
+            ImpactGraph impactGraph = new ImpactGraphBuilder().fromCallGraph(callGraph);
+            Path outputPath = resolveImpactGraphOutputPath();
+            saveImpactGraph(impactGraph, outputPath);
+
+            System.out.println();
+            System.out.println("Impact graph generated:");
+            System.out.println("- Methods: " + impactGraph.methods().size());
+            System.out.println("- Impact relations: " + impactGraph.impacts().size());
+            System.out.println("- Output: " + outputPath);
+            return 0;
+        } catch (IOException e) {
+            System.err.println("Unable to generate or save the impact graph.");
+            System.err.println(e.getMessage());
+            return 1;
+        } catch (RuntimeException e) {
+            System.err.println("Unable to generate or save the impact graph.");
+            System.err.println(e.getMessage());
+            return 1;
+        }
+    }
+
+    private Path resolveImpactGraphOutputPath() {
+        Path tcpImpactDir = repoPath
+                .resolve(projectPath)
+                .toAbsolutePath()
+                .normalize()
+                .resolve(".tcpimpact")
+                .normalize();
+        Path relativeOutput = normalizeImpactGraphOutput();
+        Path outputPath = tcpImpactDir.resolve(relativeOutput).normalize();
+        if(!outputPath.startsWith(tcpImpactDir)){
+            throw new IllegalArgumentException("--impact-graph-output must stay inside the analyzed project's .tcpimpact directory.");
+        }
+        return outputPath;
+    }
+
+    private Path normalizeImpactGraphOutput() {
+        Path normalizedOutput = impactGraphOutput.normalize();
+        if(normalizedOutput.isAbsolute()){
+            throw new IllegalArgumentException("--impact-graph-output must be a file name or relative path inside .tcpimpact.");
+        }
+        if(normalizedOutput.getNameCount() == 0 || normalizedOutput.toString().isBlank() || normalizedOutput.toString().equals(".")){
+            return Path.of("impact-graph.json");
+        }
+        if(normalizedOutput.getName(0).toString().equals(".tcpimpact")){
+            if(normalizedOutput.getNameCount() == 1){
+                return Path.of("impact-graph.json");
+            }
+            return normalizedOutput.subpath(1, normalizedOutput.getNameCount());
+        }
+        return normalizedOutput;
+    }
+
+    private void saveImpactGraph(ImpactGraph impactGraph, Path outputPath) throws IOException {
+        Path parent = outputPath.getParent();
+        if(parent != null){
+            Files.createDirectories(parent);
+        }
+        OBJECT_MAPPER.writerWithDefaultPrettyPrinter().writeValue(outputPath.toFile(), impactGraph);
     }
 
 }
