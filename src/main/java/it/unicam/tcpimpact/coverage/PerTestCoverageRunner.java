@@ -1,5 +1,4 @@
 package it.unicam.tcpimpact.coverage;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -27,9 +26,16 @@ public class PerTestCoverageRunner {
         Files.createDirectories(outputDir);
         Map<TestCaseId, Path> reports = new LinkedHashMap<>();
         for (TestCaseId testCase : testCases) {
+            Path copiedReport = outputDir.resolve(testCase.toSafeFileName() + ".xml");
+            if(Files.exists(copiedReport)){
+                System.out.println("\nSkipping coverage for test: " + testCase);
+                System.out.println("Existing JaCoCo report: " + copiedReport);
+                reports.put(testCase, copiedReport);
+                continue;
+            }
+
             System.out.println("\nRunning coverage for test: " + testCase);
             Path jacocoReport = runner.runCoverage(repoPath, projectPath, testCase.toGradleFilter());
-            Path copiedReport = outputDir.resolve(testCase.toSafeFileName() + ".xml");
             Files.copy(jacocoReport, copiedReport, StandardCopyOption.REPLACE_EXISTING);
             reports.put(testCase, copiedReport);
             Files.deleteIfExists(gradlePath.resolve("build/jacoco/test.exec"));
