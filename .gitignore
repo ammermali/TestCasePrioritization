@@ -30,6 +30,13 @@ build/
 
 ### VS Code ###
 .vscode/
+.vs/
 
 ### Mac OS ###
 .DS_Store
+/extension-module/
+/lib/
+
+# In src/main/resources: ignore everything except tcpimpact-agents
+/src/main/resources/Hackahub-IdS-2025-2026
+!src/main/resources/tcpimpact-agents/

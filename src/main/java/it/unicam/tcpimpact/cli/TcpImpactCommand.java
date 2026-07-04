@@ -1,5 +1,5 @@
 package it.unicam.tcpimpact.cli;
-import it.unicam.tcpimpact.coverage.PerTestCoverageRunner;
+import it.unicam.tcpimpact.coverage.optimized.PerTestCoverageRunner;
 import it.unicam.tcpimpact.coverage.TestCaseId;
 import it.unicam.tcpimpact.git.GitRepositoryValidator;
 import it.unicam.tcpimpact.model.ChangedMethod;
