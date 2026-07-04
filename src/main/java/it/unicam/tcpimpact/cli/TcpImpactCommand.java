@@ -1,7 +1,6 @@
 package it.unicam.tcpimpact.cli;
 import it.unicam.tcpimpact.coverage.optimized.PerTestCoverageRunner;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import it.unicam.tcpimpact.coverage.PerTestCoverageRunner;
 import it.unicam.tcpimpact.coverage.TestCaseId;
 import it.unicam.tcpimpact.git.GitRepositoryValidator;
 import it.unicam.tcpimpact.graph.CallGraphBuilder;
@@ -45,6 +44,7 @@ import it.unicam.tcpimpact.git.DiffExtractor;
 
 
 public class TcpImpactCommand implements Callable<Integer> {
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     // Path to the repo that will be analyzed
     @Option(
@@ -298,11 +298,7 @@ public class TcpImpactCommand implements Callable<Integer> {
             System.out.println("- Impact relations: " + impactGraph.impacts().size());
             System.out.println("- Output: " + outputPath);
             return 0;
-        } catch (IOException e) {
-            System.err.println("Unable to generate or save the impact graph.");
-            System.err.println(e.getMessage());
-            return 1;
-        } catch (RuntimeException e) {
+        } catch (IOException | RuntimeException e) {
             System.err.println("Unable to generate or save the impact graph.");
             System.err.println(e.getMessage());
             return 1;
@@ -329,12 +325,15 @@ public class TcpImpactCommand implements Callable<Integer> {
         if(normalizedOutput.isAbsolute()){
             throw new IllegalArgumentException("--impact-graph-output must be a file name or relative path inside .tcpimpact.");
         }
+        Path impactGraphPath = Path.of("impact-graph.json");
+
         if(normalizedOutput.getNameCount() == 0 || normalizedOutput.toString().isBlank() || normalizedOutput.toString().equals(".")){
-            return Path.of("impact-graph.json");
+            return impactGraphPath;
         }
+
         if(normalizedOutput.getName(0).toString().equals(".tcpimpact")){
             if(normalizedOutput.getNameCount() == 1){
-                return Path.of("impact-graph.json");
+                return impactGraphPath;
             }
             return normalizedOutput.subpath(1, normalizedOutput.getNameCount());
         }
