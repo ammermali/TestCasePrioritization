@@ -58,4 +58,8 @@ public record ImpactEdge(
     public static ImpactEdge testImpact(MethodId sourceMethodId, MethodId targetMethodId, double coverageRatio, int coveredLines) {
         return new ImpactEdge(sourceMethodId, targetMethodId, ImpactEdgeType.TEST_IMPACT, coverageRatio, null, coverageRatio, coveredLines);
     }
+
+    public ImpactEdge withWeight(double weight) {
+        return new ImpactEdge(sourceMethodId, targetMethodId, edgeType, weight, callKind, coverageRatio, coveredLines);
+    }
 }

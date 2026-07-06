@@ -27,6 +27,9 @@ import it.unicam.tcpimpact.graph.model.MethodNode;
 import it.unicam.tcpimpact.graph.model.MethodNodeType;
 import it.unicam.tcpimpact.model.ChangedMethod;
 import it.unicam.tcpimpact.model.MethodId;
+import it.unicam.tcpimpact.weights.EdgeWeightApplier;
+import it.unicam.tcpimpact.weights.EdgeWeightConfig;
+import it.unicam.tcpimpact.weights.EdgeWeightLoader;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
@@ -108,7 +111,13 @@ public class ImpactGraphBuilder {
         edges.addAll(collectContractImpacts(parsedProject));
         edges.addAll(collectCoverageImpacts(coverageReports, nodesById.values()));
 
-        return new ImpactGraph(new LinkedHashSet<>(nodesById.values()), edges);
+        ImpactGraph graph = new ImpactGraph(new LinkedHashSet<>(nodesById.values()), edges);
+        return applyConfiguredEdgeWeights(graph);
+    }
+
+    private ImpactGraph applyConfiguredEdgeWeights(ImpactGraph graph) throws IOException {
+        EdgeWeightConfig config = new EdgeWeightLoader().loadFixedIfExists();
+        return new EdgeWeightApplier().apply(graph, config);
     }
 
     private ParsedProject parseProject(Path repositoryPath, Path projectPath) throws IOException {
