@@ -6,6 +6,7 @@ import com.github.javaparser.symbolsolver.resolution.typesolvers.CombinedTypeSol
 import com.github.javaparser.symbolsolver.resolution.typesolvers.JavaParserTypeSolver;
 import com.github.javaparser.symbolsolver.resolution.typesolvers.ReflectionTypeSolver;
 import java.nio.file.Path;
+import java.util.List;
 
 /**
  * Factory for JavaParser instances configured with symbol resolution.
@@ -19,9 +20,15 @@ public class ParserFactory {
      * @return configured parser
      */
     public JavaParser create(Path sourceRoot) {
+        return create(List.of(sourceRoot));
+    }
+
+    public JavaParser create(List<Path> sourceRoots) {
         CombinedTypeSolver solver = new CombinedTypeSolver();
         solver.add(new ReflectionTypeSolver());
-        solver.add(new JavaParserTypeSolver(sourceRoot));
+        for(Path sourceRoot : sourceRoots){
+            solver.add(new JavaParserTypeSolver(sourceRoot));
+        }
         JavaSymbolSolver symbolSolver = new JavaSymbolSolver(solver);
         ParserConfiguration config = new ParserConfiguration()
                 .setSymbolResolver(symbolSolver)

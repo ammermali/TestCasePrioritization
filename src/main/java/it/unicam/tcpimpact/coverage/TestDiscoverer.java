@@ -11,9 +11,20 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 public class TestDiscoverer {
+    private static final Set<String> TEST_ANNOTATIONS = Set.of(
+            "Test",
+            "org.junit.Test",
+            "org.junit.jupiter.api.Test",
+            "ParameterizedTest",
+            "org.junit.jupiter.params.ParameterizedTest",
+            "RepeatedTest",
+            "org.junit.jupiter.api.RepeatedTest"
+    );
 
     private final JavaParser javaParser;
 
@@ -25,8 +36,6 @@ public class TestDiscoverer {
 
     /**
      * Discovers JUnit test methods under src/test/java.
-     * TODO: add for other annotations like @RepeatedTest, @TestFactory, etc.
-     *
      * @param gradleProjectPath path to the Gradle project root
      * @return List of discovered test methods
      * @throws IOException if test files cannot be read
@@ -81,10 +90,14 @@ public class TestDiscoverer {
     }
 
     private boolean isTestMethod(MethodDeclaration method) {
-        return method.getAnnotations().stream().anyMatch(annotation -> annotation.getNameAsString().equals("Test"));
+        return method.getAnnotations()
+                .stream()
+                .map(annotation -> annotation.getNameAsString())
+                .anyMatch(annotationName -> TEST_ANNOTATIONS.contains(annotationName) || TEST_ANNOTATIONS.contains(simpleName(annotationName)));
     }
 
     private String resolveClassName(Node node) {
+        List<String> classNames = new ArrayList<>();
         Node currentNode = node;
 
         while(currentNode.getParentNode().isPresent()){
@@ -92,9 +105,15 @@ public class TestDiscoverer {
             currentNode = currentNode.getParentNode().get();
 
             if(currentNode instanceof ClassOrInterfaceDeclaration classDeclaration)
-                return classDeclaration.getNameAsString();
+                classNames.add(classDeclaration.getNameAsString());
         }
 
-        return "";
+        Collections.reverse(classNames);
+        return String.join(".", classNames);
+    }
+
+    private String simpleName(String name) {
+        int dot = name.lastIndexOf('.');
+        return dot >= 0 ? name.substring(dot + 1) : name;
     }
 }

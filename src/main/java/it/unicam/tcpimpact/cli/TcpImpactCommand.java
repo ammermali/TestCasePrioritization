@@ -3,16 +3,15 @@ import it.unicam.tcpimpact.coverage.optimized.PerTestCoverageRunner;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import it.unicam.tcpimpact.coverage.TestCaseId;
 import it.unicam.tcpimpact.git.GitRepositoryValidator;
-import it.unicam.tcpimpact.graph.CallGraphBuilder;
 import it.unicam.tcpimpact.graph.ImpactGraphBuilder;
 import it.unicam.tcpimpact.graph.ParserFactory;
 import it.unicam.tcpimpact.graph.model.ImpactGraph;
-import it.unicam.tcpimpact.graph.model.MethodCallGraph;
 import it.unicam.tcpimpact.model.ChangedMethod;
 import it.unicam.tcpimpact.model.MethodId;
 import it.unicam.tcpimpact.model.MethodRange;
 import it.unicam.tcpimpact.parser.ChangedMethodDetector;
 import it.unicam.tcpimpact.parser.RevisionMethodExtractor;
+import it.unicam.tcpimpact.risk.RiskPropagator;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import java.io.IOException;
@@ -287,18 +286,24 @@ public class TcpImpactCommand implements Callable<Integer> {
     private Integer runImpactGraphExportMode() {
         try {
             ParserFactory parserFactory = new ParserFactory();
-            MethodCallGraph callGraph = new CallGraphBuilder(parserFactory).build(repoPath, projectPath);
-            ImpactGraph impactGraph = new ImpactGraphBuilder().fromCallGraph(callGraph);
+            DiffExtractor diffExtractor = new DiffExtractor();
+            List<ChangedJavaFile> changedJavaFiles = diffExtractor.extractChangedJavaFiles(repoPath, baseRevision, headRevision);
+            List<ChangedMethod> changedMethods = detectChangedMethods(changedJavaFiles);
+            List<Path> coverageReports = discoverCoverageReports();
+            ImpactGraph impactGraph = new ImpactGraphBuilder(parserFactory).build(repoPath, projectPath, changedMethods, coverageReports);
+            impactGraph = new RiskPropagator().propagate(impactGraph);
             Path outputPath = resolveImpactGraphOutputPath();
             saveImpactGraph(impactGraph, outputPath);
 
             System.out.println();
             System.out.println("Impact graph generated:");
-            System.out.println("- Methods: " + impactGraph.methods().size());
-            System.out.println("- Impact relations: " + impactGraph.impacts().size());
+            System.out.println("- Method nodes: " + impactGraph.nodes().size());
+            System.out.println("- Impact edges: " + impactGraph.edges().size());
+            System.out.println("- Changed methods mapped: " + changedMethods.size());
+            System.out.println("- Coverage reports parsed: " + coverageReports.size());
             System.out.println("- Output: " + outputPath);
             return 0;
-        } catch (IOException | RuntimeException e) {
+        } catch (Exception e) {
             System.err.println("Unable to generate or save the impact graph.");
             System.err.println(e.getMessage());
             return 1;
@@ -346,6 +351,30 @@ public class TcpImpactCommand implements Callable<Integer> {
             Files.createDirectories(parent);
         }
         OBJECT_MAPPER.writerWithDefaultPrettyPrinter().writeValue(outputPath.toFile(), impactGraph);
+    }
+
+    private List<Path> discoverCoverageReports() throws IOException {
+        Path tcpImpactDir = repoPath
+                .resolve(projectPath)
+                .toAbsolutePath()
+                .normalize()
+                .resolve(".tcpimpact")
+                .normalize();
+        Path optimizedXmlDir = tcpImpactDir.resolve("per-test-coverage").resolve("xml");
+        Path legacyCoverageDir = tcpImpactDir.resolve("per-test-coverage");
+        List<Path> coverageRoots = List.of(optimizedXmlDir, legacyCoverageDir);
+        List<Path> reports = new ArrayList<>();
+        for(Path coverageRoot : coverageRoots){
+            if(!Files.exists(coverageRoot)){
+                continue;
+            }
+            try(var files = Files.walk(coverageRoot)){
+                files.filter(Files::isRegularFile)
+                        .filter(path -> path.toString().endsWith(".xml"))
+                        .forEach(reports::add);
+            }
+        }
+        return reports.stream().distinct().toList();
     }
 
 }
