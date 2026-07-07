@@ -27,6 +27,11 @@ import it.unicam.tcpimpact.graph.model.MethodNode;
 import it.unicam.tcpimpact.graph.model.MethodNodeType;
 import it.unicam.tcpimpact.model.ChangedMethod;
 import it.unicam.tcpimpact.model.MethodId;
+import it.unicam.tcpimpact.risk.ChangeSensitivityAnalyzer;
+import it.unicam.tcpimpact.risk.GraphRiskMetricsProvider;
+import it.unicam.tcpimpact.risk.RiskValueCalculator;
+import it.unicam.tcpimpact.risk.RiskValueAnnotator;
+import it.unicam.tcpimpact.risk.RiskWeightLoader;
 import it.unicam.tcpimpact.weights.EdgeWeightApplier;
 import it.unicam.tcpimpact.weights.EdgeWeightConfig;
 import it.unicam.tcpimpact.weights.EdgeWeightLoader;
@@ -97,13 +102,14 @@ public class ImpactGraphBuilder {
                 changedMethod = changeIndex.findLoose(node.id());
             }
             if(changedMethod.isPresent()){
-                node = node.withChange(ChangeStatus.MODIFIED, changedMethod.get().changedLines(), 1.0);
+                node = node.withChange(ChangeStatus.MODIFIED, changedMethod.get().changedLines());
             }
             nodesById.put(node.id(), node);
         }
 
         // external calls are kept as caller metadata; they do not become propagation nodes
         EdgeExtraction extractedCalls = collectCallImpacts(parsedProject.methods(), methodsById.keySet(), looseIds);
+        Map<MethodId, Double> changeSensitivities = collectChangeSensitivities(parsedProject.methods(), nodesById);
         nodesById = attachExternalCalls(nodesById, extractedCalls.externalCalls());
 
         Set<ImpactEdge> edges = new LinkedHashSet<>();
@@ -112,7 +118,16 @@ public class ImpactGraphBuilder {
         edges.addAll(collectCoverageImpacts(coverageReports, nodesById.values()));
 
         ImpactGraph graph = new ImpactGraph(new LinkedHashSet<>(nodesById.values()), edges);
+        graph = applyInitialRiskValues(graph, extractedCalls.callCounts(), changeSensitivities);
         return applyConfiguredEdgeWeights(graph);
+    }
+
+    private ImpactGraph applyInitialRiskValues(ImpactGraph graph, Map<MethodId, Integer> callCounts, Map<MethodId, Double> changeSensitivities)
+            throws IOException {
+        return new RiskValueAnnotator(
+                new GraphRiskMetricsProvider(callCounts, changeSensitivities),
+                new RiskValueCalculator(new RiskWeightLoader().loadFixedIfExists())
+        ).annotate(graph);
     }
 
     private ImpactGraph applyConfiguredEdgeWeights(ImpactGraph graph) throws IOException {
@@ -237,6 +252,7 @@ public class ImpactGraphBuilder {
                 List.of(),
                 0.0,
                 0.0,
+                0.0,
                 List.of()
         );
         return Optional.of(new ParsedMethod(node, declaration, qualifiedTypeName(packageName, className), testSource));
@@ -301,6 +317,7 @@ public class ImpactGraphBuilder {
                 List.of(),
                 0.0,
                 0.0,
+                0.0,
                 List.of()
         );
     }
@@ -339,6 +356,7 @@ public class ImpactGraphBuilder {
     private EdgeExtraction collectCallImpacts(Collection<ParsedMethod> methods, Set<MethodId> projectMethods, Map<String, MethodId> looseIds) {
         Set<ImpactEdge> edges = new LinkedHashSet<>();
         Map<MethodId, Set<String>> externalCalls = new LinkedHashMap<>();
+        Map<MethodId, Integer> callCounts = new LinkedHashMap<>();
 
         for(ParsedMethod parsedMethod : methods){
             MethodId caller = parsedMethod.node().id();
@@ -347,6 +365,7 @@ public class ImpactGraphBuilder {
                         .flatMap(methodId -> projectMethodId(methodId, projectMethods, looseIds));
                 if(callee.isPresent()){
                     CallKind callKind = callKind(expression, callee.get(), methods);
+                    callCounts.merge(callee.get(), 1, Integer::sum);
                     edges.add(ImpactEdge.callImpact(callee.get(), caller, callKind));
                 } else {
                     addExternalCall(externalCalls, caller, expression.toString());
@@ -357,6 +376,7 @@ public class ImpactGraphBuilder {
                 Optional<MethodId> callee = resolveMethodReference(expression)
                         .flatMap(methodId -> projectMethodId(methodId, projectMethods, looseIds));
                 if(callee.isPresent()){
+                    callCounts.merge(callee.get(), 1, Integer::sum);
                     edges.add(ImpactEdge.callImpact(callee.get(), caller, CallKind.METHOD_REFERENCE));
                 } else {
                     addExternalCall(externalCalls, caller, expression.toString());
@@ -368,6 +388,7 @@ public class ImpactGraphBuilder {
                         .flatMap(methodId -> projectMethodId(methodId, projectMethods, looseIds));
                 if(constructor.isPresent()){
                     // constructor calls stay CALL_IMPACT edges and are distinguished by callKind
+                    callCounts.merge(constructor.get(), 1, Integer::sum);
                     edges.add(ImpactEdge.callImpact(constructor.get(), caller, CallKind.CONSTRUCTOR));
                 } else {
                     addExternalCall(externalCalls, caller, "new " + expression.getType().asString());
@@ -375,7 +396,20 @@ public class ImpactGraphBuilder {
             }
         }
 
-        return new EdgeExtraction(edges, externalCalls);
+        return new EdgeExtraction(edges, externalCalls, callCounts);
+    }
+
+    private Map<MethodId, Double> collectChangeSensitivities(Collection<ParsedMethod> methods, Map<MethodId, MethodNode> nodesById) {
+        Map<MethodId, Double> result = new LinkedHashMap<>();
+        ChangeSensitivityAnalyzer analyzer = new ChangeSensitivityAnalyzer();
+        for(ParsedMethod method : methods){
+            MethodNode node = nodesById.get(method.node().id());
+            if(node == null || node.changeStatus() == ChangeStatus.UNCHANGED){
+                continue;
+            }
+            result.put(node.id(), analyzer.sensitivity(method.declaration(), node.changedLines()));
+        }
+        return result;
     }
 
     private Optional<MethodId> projectMethodId(MethodId candidate, Set<MethodId> projectMethods, Map<String, MethodId> looseIds) {
@@ -657,7 +691,7 @@ public class ImpactGraphBuilder {
             List<String> implementedTypes
     ) { }
 
-    private record EdgeExtraction(Set<ImpactEdge> edges, Map<MethodId, Set<String>> externalCalls) { }
+    private record EdgeExtraction(Set<ImpactEdge> edges, Map<MethodId, Set<String>> externalCalls, Map<MethodId, Integer> callCounts) { }
 
     private record ChangeIndex(Map<MethodId, ChangedMethod> exact, Map<String, ChangedMethod> loose) {
         static ChangeIndex from(Collection<ChangedMethod> changedMethods) {

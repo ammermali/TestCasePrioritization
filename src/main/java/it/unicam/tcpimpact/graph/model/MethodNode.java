@@ -22,7 +22,8 @@ public record MethodNode(
         boolean isTestMethod,
         ChangeStatus changeStatus,
         List<Integer> changedLines,
-        double initialRiskScore,
+        double riskValue,
+        double initialRiskValue,
         double propagatedRiskScore,
         List<String> externalCalls
 ) {
@@ -33,15 +34,11 @@ public record MethodNode(
         externalCalls = externalCalls == null ? List.of() : List.copyOf(externalCalls);
     }
 
-    /**
-     * Returns a non-immutable copy of the node.
-     *
-     * @param status
-     * @param lines
-     * @param initialRisk
-     * @return copy
-     */
-    public MethodNode withChange(ChangeStatus status, List<Integer> lines, double initialRisk) {
+    public double initialRiskScore() {
+        return initialRiskValue;
+    }
+
+    public MethodNode withChange(ChangeStatus status, List<Integer> lines) {
         return new MethodNode(
                 id,
                 nodeType,
@@ -62,18 +59,44 @@ public record MethodNode(
                 isTestMethod,
                 status,
                 lines,
-                initialRisk,
+                riskValue,
+                initialRiskValue,
                 propagatedRiskScore,
                 externalCalls
         );
     }
 
     /**
-     * Returns a non-immutable copy of the node with the risk score changed.
-     *
-     * @param score new score
-     * @return copy
+     * Updates the entity risk and the value used to seed graph propagation.
      */
+    public MethodNode withRiskValues(double riskValue, double initialRiskValue) {
+        return new MethodNode(
+                id,
+                nodeType,
+                packageName,
+                className,
+                methodName,
+                fullSignature,
+                returnType,
+                filePath,
+                startLine,
+                endLine,
+                visibility,
+                methodKind,
+                isStatic,
+                isAbstract,
+                isInInterface,
+                isConstructor,
+                isTestMethod,
+                changeStatus,
+                changedLines,
+                riskValue,
+                initialRiskValue,
+                propagatedRiskScore,
+                externalCalls
+        );
+    }
+
     public MethodNode withPropagatedRiskScore(double score) {
         return new MethodNode(
                 id,
@@ -95,18 +118,13 @@ public record MethodNode(
                 isTestMethod,
                 changeStatus,
                 changedLines,
-                initialRiskScore,
+                riskValue,
+                initialRiskValue,
                 score,
                 externalCalls
         );
     }
 
-    /**
-     * Returns a copy with updated external call metadata.
-     *
-     * @param calls
-     * @return copy
-     */
     public MethodNode withExternalCalls(List<String> calls) {
         return new MethodNode(
                 id,
@@ -128,7 +146,8 @@ public record MethodNode(
                 isTestMethod,
                 changeStatus,
                 changedLines,
-                initialRiskScore,
+                riskValue,
+                initialRiskValue,
                 propagatedRiskScore,
                 calls
         );
