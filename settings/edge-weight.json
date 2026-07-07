@@ -1,0 +1,18 @@
+{
+  "defaults": {
+    "CALL_IMPACT": 0.75,
+    "CONTRACT_IMPACT": 0.85,
+    "TEST_IMPACT": 1.0
+  },
+  "callKinds": {
+    "NORMAL": 0.75,
+    "CONSTRUCTOR": 0.75,
+    "SUPER": 0.75,
+    "PRIVATE": 0.75,
+    "METHOD_REFERENCE": 0.75,
+    "LAMBDA": 0.75,
+    "EXTERNAL": 0.75,
+    "UNRESOLVED": 0.75
+  },
+  "overrides": []
+}

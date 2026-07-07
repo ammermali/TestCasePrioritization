@@ -50,21 +50,21 @@ public class MethodExtractor {
         List<MethodRange> methodRanges = new ArrayList<>();
         for(MethodDeclaration methodDeclaration : compilationUnit.findAll(MethodDeclaration.class)) {
             methodDeclaration.getRange().ifPresent(range -> {
-                MethodId methodId = new MethodId(packageName, resolveClassName(methodDeclaration), methodDeclaration.getNameAsString(), extractParametersTypes(methodDeclaration.getParameters()));
+                MethodId methodId = new MethodId(packageName, resolveClassName(methodDeclaration), methodDeclaration.getNameAsString(), extractParametersTypes(methodDeclaration.getParameters()), methodDeclaration.getType().asString());
                 MethodRange methodRange = new MethodRange(methodId, path, range.begin.line, range.end.line);
                 methodRanges.add(methodRange);
             });
         }
         for(ConstructorDeclaration constructorDeclaration : compilationUnit.findAll(ConstructorDeclaration.class)) {
             constructorDeclaration.getRange().ifPresent(range -> {
-                MethodId methodId = new MethodId(packageName, resolveClassName(constructorDeclaration), constructorDeclaration.getNameAsString(), extractParametersTypes(constructorDeclaration.getParameters()));
+                MethodId methodId = new MethodId(packageName, resolveClassName(constructorDeclaration), MethodId.CONSTRUCTOR_NAME, extractParametersTypes(constructorDeclaration.getParameters()), "");
                 MethodRange methodRange = new MethodRange(methodId, path, range.begin.line, range.end.line);
                 methodRanges.add(methodRange);
             });
         }
         for(CompactConstructorDeclaration compactConstructorDeclaration : compilationUnit.findAll(CompactConstructorDeclaration.class)) {
             compactConstructorDeclaration.getRange().ifPresent(range -> {
-                MethodId methodId = new MethodId(packageName, resolveClassName(compactConstructorDeclaration), compactConstructorDeclaration.getNameAsString(), List.of());
+                MethodId methodId = new MethodId(packageName, resolveClassName(compactConstructorDeclaration), MethodId.CONSTRUCTOR_NAME, List.of(), "");
                 MethodRange methodRange = new MethodRange(methodId, path, range.begin.line, range.end.line);
                 methodRanges.add(methodRange);
             });

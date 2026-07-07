@@ -1,4 +1,5 @@
 package it.unicam.tcpimpact.graph;
+import com.github.javaparser.resolution.declarations.ResolvedConstructorDeclaration;
 import com.github.javaparser.resolution.declarations.ResolvedMethodDeclaration;
 import it.unicam.tcpimpact.model.MethodId;
 import java.util.List;
@@ -24,7 +25,17 @@ final class ResolvedMethodIds {
                 .stream()
                 .map(type -> type.describe())
                 .toList();
-        return new MethodId(packageName, className, resolved.getName(), parameterTypes);
+        return new MethodId(packageName, className, resolved.getName(), parameterTypes, resolved.getReturnType().describe());
+    }
+
+    static MethodId from(ResolvedConstructorDeclaration resolved) {
+        String packageName = resolved.declaringType().getPackageName();
+        String className = className(packageName, resolved.declaringType().getQualifiedName());
+        List<String> parameterTypes = resolved.formalParameterTypes()
+                .stream()
+                .map(type -> type.describe())
+                .toList();
+        return new MethodId(packageName, className, MethodId.CONSTRUCTOR_NAME, parameterTypes, "");
     }
 
     private static String className(String packageName, String qualifiedTypeName) {
