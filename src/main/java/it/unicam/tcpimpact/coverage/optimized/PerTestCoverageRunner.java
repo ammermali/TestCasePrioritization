@@ -44,8 +44,7 @@ public class PerTestCoverageRunner {
         Path extensionJar = agentResources.extractExtensionJar();
         Path initScript = initScriptGenerator.generate(bootstrapDir, jacocoAgentJar, extensionJar);
 
-        System.out.println("\nRunning the full test suite once "
-                + "(per-test coverage is captured in-process, no per-test Gradle invocations)...");
+        System.out.println("\nRunning the full test suite");
         runner.runSuiteWithPerTestCoverage(repoPath, projectPath, initScript, execDir);
 
         Path compiledClassesDir = gradlePath.resolve("build/classes/java/main");
