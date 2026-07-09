@@ -1,0 +1,146 @@
+{
+  "description": "Generated from a base impact graph and PIT mutations.xml.",
+  "examples": [
+    {
+      "caseId": "apache_commons-validator-mutant-0001",
+      "graph": "graphs/apache_commons-validator-mutant-0001-graph.json",
+      "priorityQueue": "queues/apache_commons-validator-mutant-0001-priority.json"
+    },
+    {
+      "caseId": "apache_commons-validator-mutant-0002",
+      "graph": "graphs/apache_commons-validator-mutant-0002-graph.json",
+      "priorityQueue": "queues/apache_commons-validator-mutant-0002-priority.json"
+    },
+    {
+      "caseId": "apache_commons-validator-mutant-0003",
+      "graph": "graphs/apache_commons-validator-mutant-0003-graph.json",
+      "priorityQueue": "queues/apache_commons-validator-mutant-0003-priority.json"
+    },
+    {
+      "caseId": "apache_commons-validator-mutant-0004",
+      "graph": "graphs/apache_commons-validator-mutant-0004-graph.json",
+      "priorityQueue": "queues/apache_commons-validator-mutant-0004-priority.json"
+    },
+    {
+      "caseId": "apache_commons-validator-mutant-0005",
+      "graph": "graphs/apache_commons-validator-mutant-0005-graph.json",
+      "priorityQueue": "queues/apache_commons-validator-mutant-0005-priority.json"
+    },
+    {
+      "caseId": "apache_commons-validator-mutant-0006",
+      "graph": "graphs/apache_commons-validator-mutant-0006-graph.json",
+      "priorityQueue": "queues/apache_commons-validator-mutant-0006-priority.json"
+    },
+    {
+      "caseId": "apache_commons-validator-mutant-0007",
+      "graph": "graphs/apache_commons-validator-mutant-0007-graph.json",
+      "priorityQueue": "queues/apache_commons-validator-mutant-0007-priority.json"
+    },
+    {
+      "caseId": "apache_commons-validator-mutant-0008",
+      "graph": "graphs/apache_commons-validator-mutant-0008-graph.json",
+      "priorityQueue": "queues/apache_commons-validator-mutant-0008-priority.json"
+    },
+    {
+      "caseId": "apache_commons-validator-mutant-0009",
+      "graph": "graphs/apache_commons-validator-mutant-0009-graph.json",
+      "priorityQueue": "queues/apache_commons-validator-mutant-0009-priority.json"
+    },
+    {
+      "caseId": "apache_commons-validator-mutant-0010",
+      "graph": "graphs/apache_commons-validator-mutant-0010-graph.json",
+      "priorityQueue": "queues/apache_commons-validator-mutant-0010-priority.json"
+    },
+    {
+      "caseId": "apache_commons-validator-mutant-0011",
+      "graph": "graphs/apache_commons-validator-mutant-0011-graph.json",
+      "priorityQueue": "queues/apache_commons-validator-mutant-0011-priority.json"
+    },
+    {
+      "caseId": "apache_commons-validator-mutant-0012",
+      "graph": "graphs/apache_commons-validator-mutant-0012-graph.json",
+      "priorityQueue": "queues/apache_commons-validator-mutant-0012-priority.json"
+    },
+    {
+      "caseId": "apache_commons-validator-mutant-0013",
+      "graph": "graphs/apache_commons-validator-mutant-0013-graph.json",
+      "priorityQueue": "queues/apache_commons-validator-mutant-0013-priority.json"
+    },
+    {
+      "caseId": "apache_commons-validator-mutant-0014",
+      "graph": "graphs/apache_commons-validator-mutant-0014-graph.json",
+      "priorityQueue": "queues/apache_commons-validator-mutant-0014-priority.json"
+    },
+    {
+      "caseId": "apache_commons-validator-mutant-0015",
+      "graph": "graphs/apache_commons-validator-mutant-0015-graph.json",
+      "priorityQueue": "queues/apache_commons-validator-mutant-0015-priority.json"
+    },
+    {
+      "caseId": "apache_commons-validator-mutant-0016",
+      "graph": "graphs/apache_commons-validator-mutant-0016-graph.json",
+      "priorityQueue": "queues/apache_commons-validator-mutant-0016-priority.json"
+    },
+    {
+      "caseId": "apache_commons-validator-mutant-0017",
+      "graph": "graphs/apache_commons-validator-mutant-0017-graph.json",
+      "priorityQueue": "queues/apache_commons-validator-mutant-0017-priority.json"
+    },
+    {
+      "caseId": "apache_commons-validator-mutant-0018",
+      "graph": "graphs/apache_commons-validator-mutant-0018-graph.json",
+      "priorityQueue": "queues/apache_commons-validator-mutant-0018-priority.json"
+    },
+    {
+      "caseId": "apache_commons-validator-mutant-0019",
+      "graph": "graphs/apache_commons-validator-mutant-0019-graph.json",
+      "priorityQueue": "queues/apache_commons-validator-mutant-0019-priority.json"
+    },
+    {
+      "caseId": "apache_commons-validator-mutant-0020",
+      "graph": "graphs/apache_commons-validator-mutant-0020-graph.json",
+      "priorityQueue": "queues/apache_commons-validator-mutant-0020-priority.json"
+    },
+    {
+      "caseId": "apache_commons-validator-mutant-0021",
+      "graph": "graphs/apache_commons-validator-mutant-0021-graph.json",
+      "priorityQueue": "queues/apache_commons-validator-mutant-0021-priority.json"
+    },
+    {
+      "caseId": "apache_commons-validator-mutant-0022",
+      "graph": "graphs/apache_commons-validator-mutant-0022-graph.json",
+      "priorityQueue": "queues/apache_commons-validator-mutant-0022-priority.json"
+    },
+    {
+      "caseId": "apache_commons-validator-mutant-0023",
+      "graph": "graphs/apache_commons-validator-mutant-0023-graph.json",
+      "priorityQueue": "queues/apache_commons-validator-mutant-0023-priority.json"
+    },
+    {
+      "caseId": "apache_commons-validator-mutant-0024",
+      "graph": "graphs/apache_commons-validator-mutant-0024-graph.json",
+      "priorityQueue": "queues/apache_commons-validator-mutant-0024-priority.json"
+    },
+    {
+      "caseId": "apache_commons-validator-mutant-0025",
+      "graph": "graphs/apache_commons-validator-mutant-0025-graph.json",
+      "priorityQueue": "queues/apache_commons-validator-mutant-0025-priority.json"
+    },
+    {
+      "caseId": "apache_commons-validator-mutant-0026",
+      "graph": "graphs/apache_commons-validator-mutant-0026-graph.json",
+      "priorityQueue": "queues/apache_commons-validator-mutant-0026-priority.json"
+    },
+    {
+      "caseId": "apache_commons-validator-mutant-0027",
+      "graph": "graphs/apache_commons-validator-mutant-0027-graph.json",
+      "priorityQueue": "queues/apache_commons-validator-mutant-0027-priority.json"
+    },
+    {
+      "caseId": "apache_commons-validator-mutant-0028",
+      "graph": "graphs/apache_commons-validator-mutant-0028-graph.json",
+      "priorityQueue": "queues/apache_commons-validator-mutant-0028-priority.json"
+    }
+  ],
+  "subject": "apache_commons-validator"
+}

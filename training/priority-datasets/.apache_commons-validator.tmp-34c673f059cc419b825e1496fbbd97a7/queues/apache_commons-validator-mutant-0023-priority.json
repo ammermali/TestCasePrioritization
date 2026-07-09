@@ -1,0 +1,15 @@
+{
+  "description": "Expected priority queue from PIT killing tests. Edit if you want a different order.",
+  "mutation": {
+    "description": "changed conditional boundary",
+    "graphMethodId": "org.apache.commons.validator.routines.IBANValidator.Validator#<init>(java.lang.String,int,java.lang.String)",
+    "line": 63,
+    "methodId": "org.apache.commons.validator.routines.IBANValidator$Validator#<init>(java.lang.String,int,java.lang.String)",
+    "mutator": "ConditionalsBoundary"
+  },
+  "priorityQueue": [
+    "org.apache.commons.validator.routines.IBANValidatorTest#testSetValidatorLen7():void",
+    "org.apache.commons.validator.routines.IBANValidatorTest#testGetValidator():void"
+  ],
+  "source": "pit mutations.xml"
+}

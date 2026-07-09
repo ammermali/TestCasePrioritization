@@ -1,0 +1,14 @@
+{
+  "description": "Expected priority queue from PIT killing tests. Edit if you want a different order.",
+  "mutation": {
+    "description": "replaced boolean return with true for org/apache/commons/validator/routines/IBANValidator::hasValidator",
+    "graphMethodId": "org.apache.commons.validator.routines.IBANValidator#hasValidator(java.lang.String):boolean",
+    "line": 228,
+    "methodId": "org.apache.commons.validator.routines.IBANValidator#hasValidator(java.lang.String):boolean",
+    "mutator": "BooleanTrueReturnVals"
+  },
+  "priorityQueue": [
+    "org.apache.commons.validator.routines.IBANValidatorTest#testHasValidator():void"
+  ],
+  "source": "pit mutations.xml"
+}

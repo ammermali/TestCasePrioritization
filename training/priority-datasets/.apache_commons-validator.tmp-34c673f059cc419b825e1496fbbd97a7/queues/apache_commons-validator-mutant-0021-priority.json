@@ -1,0 +1,14 @@
+{
+  "description": "Expected priority queue from PIT killing tests. Edit if you want a different order.",
+  "mutation": {
+    "description": "replaced return value with null for org/apache/commons/validator/routines/IBANValidator::setValidator",
+    "graphMethodId": "org.apache.commons.validator.routines.IBANValidator#setValidator(java.lang.String,int,java.lang.String):org.apache.commons.validator.routines.IBANValidator.Validator",
+    "line": 287,
+    "methodId": "org.apache.commons.validator.routines.IBANValidator#setValidator(java.lang.String,int,java.lang.String):org.apache.commons.validator.routines.IBANValidator$Validator",
+    "mutator": "NullReturnVals"
+  },
+  "priorityQueue": [
+    "org.apache.commons.validator.routines.IBANValidatorTest#testSetValidatorLen_1():void"
+  ],
+  "source": "pit mutations.xml"
+}

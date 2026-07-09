@@ -1,0 +1,10 @@
+{
+  "base": "HEAD",
+  "generatedGraph": "C:\\Users\\aless\\Documents\\GitHub\\predictiverts\\_downloads\\frizbog_gedcom4j\\.tcpimpact\\impact-graph.json",
+  "head": "HEAD",
+  "javaCliInvoked": true,
+  "projectPath": ".",
+  "repo": "C:\\Users\\aless\\Documents\\GitHub\\predictiverts\\_downloads\\frizbog_gedcom4j",
+  "subject": "frizbog_gedcom4j",
+  "trainingGraph": "training\\graphs\\frizbog_gedcom4j-base.json"
+}

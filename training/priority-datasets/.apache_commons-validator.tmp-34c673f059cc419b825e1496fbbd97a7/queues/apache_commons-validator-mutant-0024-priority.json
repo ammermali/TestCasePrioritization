@@ -1,0 +1,17 @@
+{
+  "description": "Expected priority queue from PIT killing tests. Edit if you want a different order.",
+  "mutation": {
+    "description": "negated conditional",
+    "graphMethodId": "org.apache.commons.validator.routines.IBANValidator.Validator#<init>(java.lang.String,int,java.lang.String)",
+    "line": 60,
+    "methodId": "org.apache.commons.validator.routines.IBANValidator$Validator#<init>(java.lang.String,int,java.lang.String)",
+    "mutator": "NegateConditionals"
+  },
+  "priorityQueue": [
+    "org.apache.commons.validator.routines.IBANValidatorTest#testSetValidatorLC():void",
+    "org.apache.commons.validator.routines.IBANValidatorTest#testSetValidatorLen35():void",
+    "org.apache.commons.validator.routines.IBANValidatorTest#testSetValidatorLen7():void",
+    "org.apache.commons.validator.routines.IBANValidatorTest#testGetValidator():void"
+  ],
+  "source": "pit mutations.xml"
+}

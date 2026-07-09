@@ -1,0 +1,20 @@
+{
+  "baseGraph": "training\\graphs\\apache_commons-validator-base.json",
+  "dataset": "training\\priority-datasets\\apache_commons-validator\\dataset.json",
+  "exported": 28,
+  "maxDepth": 4,
+  "maxTestsPerQueue": 5,
+  "mutations": "C:\\Users\\aless\\Documents\\GitHub\\predictiverts\\_downloads\\apache_commons-validator\\target\\pit-reports\\202607091140\\mutations.xml",
+  "riskValue": 1.0,
+  "skipped": {
+    "limitReached": 0,
+    "methodNotInGraph": 10,
+    "missingMethod": 0,
+    "noImpactPath": 24,
+    "noKillingTests": 0,
+    "noKillingTestsInGraph": 1276,
+    "notKilled": 670
+  },
+  "subject": "apache_commons-validator",
+  "totalMutations": 2008
+}

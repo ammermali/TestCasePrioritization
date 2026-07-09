@@ -1,0 +1,14 @@
+{
+  "description": "Expected priority queue from PIT killing tests. Edit if you want a different order.",
+  "mutation": {
+    "description": "changed conditional boundary",
+    "graphMethodId": "org.apache.commons.validator.routines.RegexValidator#isValid(java.lang.String):boolean",
+    "line": 145,
+    "methodId": "org.apache.commons.validator.routines.RegexValidator#isValid(java.lang.String):boolean",
+    "mutator": "ConditionalsBoundary"
+  },
+  "priorityQueue": [
+    "org.apache.commons.validator.routines.IBANValidatorTest#testInValid():void"
+  ],
+  "source": "pit mutations.xml"
+}

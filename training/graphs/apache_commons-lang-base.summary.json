@@ -1,0 +1,10 @@
+{
+  "base": "HEAD",
+  "generatedGraph": "C:\\Users\\aless\\Documents\\GitHub\\predictiverts\\_downloads\\apache_commons-lang\\.tcpimpact\\impact-graph.json",
+  "head": "HEAD",
+  "javaCliInvoked": true,
+  "projectPath": ".",
+  "repo": "C:\\Users\\aless\\Documents\\GitHub\\predictiverts\\_downloads\\apache_commons-lang",
+  "subject": "apache_commons-lang",
+  "trainingGraph": "training\\graphs\\apache_commons-lang-base.json"
+}

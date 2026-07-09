@@ -293,7 +293,7 @@ public class TcpImpactCommand implements Callable<Integer> {
             ImpactGraph impactGraph = new ImpactGraphBuilder(parserFactory).build(repoPath, projectPath, changedMethods, coverageReports);
             impactGraph = new RiskPropagator().propagate(impactGraph);
             Path outputPath = resolveImpactGraphOutputPath();
-            saveImpactGraph(impactGraph, outputPath);
+            saveJson(impactGraph, outputPath);
 
             System.out.println();
             System.out.println("Impact graph generated:");
@@ -345,12 +345,12 @@ public class TcpImpactCommand implements Callable<Integer> {
         return normalizedOutput;
     }
 
-    private void saveImpactGraph(ImpactGraph impactGraph, Path outputPath) throws IOException {
+    private void saveJson(Object payload, Path outputPath) throws IOException {
         Path parent = outputPath.getParent();
         if(parent != null){
             Files.createDirectories(parent);
         }
-        OBJECT_MAPPER.writerWithDefaultPrettyPrinter().writeValue(outputPath.toFile(), impactGraph);
+        OBJECT_MAPPER.writerWithDefaultPrettyPrinter().writeValue(outputPath.toFile(), payload);
     }
 
     private List<Path> discoverCoverageReports() throws IOException {
