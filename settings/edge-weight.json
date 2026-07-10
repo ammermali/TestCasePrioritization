@@ -1,17 +1,13 @@
 {
   "callKinds": {
-    "CONSTRUCTOR": 0.75,
-    "EXTERNAL": 0.75,
-    "LAMBDA": 0.75,
-    "METHOD_REFERENCE": 0.75,
-    "NORMAL": 0.75,
-    "PRIVATE": 0.75,
-    "SUPER": 0.75,
-    "UNRESOLVED": 0.75
+    "CONSTRUCTOR": 0.5165708207018858,
+    "NORMAL": 0.7260078433160562,
+    "PRIVATE": 0.25742133598207395,
+    "SUPER": 0.62
   },
   "defaults": {
-    "CALL_IMPACT": 0.75,
-    "CONTRACT_IMPACT": 0.85,
+    "CALL_IMPACT": 0.5,
+    "CONTRACT_IMPACT": 0.5,
     "TEST_IMPACT": 1.0
   },
   "overrides": []
