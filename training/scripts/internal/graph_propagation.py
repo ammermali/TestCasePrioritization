@@ -8,6 +8,7 @@ from typing import Any
 
 
 DEFAULT_FALLBACK_INITIAL_RISK = 1.0
+TRAINABLE_CALL_KINDS = {"NORMAL", "CONSTRUCTOR", "PRIVATE", "SUPER"}
 
 
 def load_json(path: str | Path) -> Any:
@@ -83,7 +84,7 @@ def edge_weight(edge: dict[str, Any], weights: dict[str, Any]) -> float:
         if override is not None:
             return override
         call_kind = edge.get("callKind")
-        if call_kind is not None and weights.get("callKinds", {}).get(call_kind) is not None:
+        if call_kind in TRAINABLE_CALL_KINDS and weights.get("callKinds", {}).get(call_kind) is not None:
             return float(weights["callKinds"][call_kind])
         if edge_type in weights.get("defaults", {}):
             return float(weights["defaults"][edge_type])

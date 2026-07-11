@@ -1,14 +1,15 @@
 """Train graph edge weights from risk-initialized graph/priority-queue cases.
 
-The default mode updates shared Java edge-weight buckets (`callKinds` and
-`defaults`) instead of writing edge-specific overrides. Edge overrides remain
-available only for compatibility experiments.
+The default mode trains the reusable Java edge weights: the relevant
+`callKinds` for CALL_IMPACT edges and `defaults` for relation types. Edge
+overrides remain available only for compatibility experiments.
 """
 
 from __future__ import annotations
 
 import argparse
-from collections import defaultdict, deque
+import copy
+from collections import Counter, defaultdict, deque
 from pathlib import Path
 from typing import Any
 
@@ -16,7 +17,8 @@ from graph_propagation import edge_weight, load_graph, load_json, write_json
 from metrics import comparison_key
 
 
-CALL_KINDS = ["NORMAL", "CONSTRUCTOR", "SUPER", "PRIVATE", "METHOD_REFERENCE", "LAMBDA", "EXTERNAL", "UNRESOLVED"]
+CALL_KINDS = ["NORMAL", "CONSTRUCTOR", "PRIVATE", "SUPER"]
+TRAINABLE_CALL_KINDS = set(CALL_KINDS)
 
 
 def main() -> None:
@@ -31,11 +33,12 @@ def main() -> None:
     parser.add_argument("--update-scope", choices=("shared", "edge-override"), default="shared", help="Use shared callKind/default weights by default; edge-override keeps the old edge-specific behavior.")
     parser.add_argument("--use-overrides", action="store_true", help="Use existing edge-specific overrides while training. By default shared training ignores them.")
     parser.add_argument("--iterations", type=int, default=100)
+    parser.add_argument("--progress-every", type=int, default=10, help="Print one progress line every N iterations. Use 0 to disable.")
     parser.add_argument("--learning-rate", type=float, default=0.05)
     parser.add_argument("--max-depth", type=int, default=4)
     parser.add_argument("--top-k", type=int, default=20)
     parser.add_argument("--max-edges-per-update", type=int, default=30)
-    parser.add_argument("--max-buckets-per-update", type=int, default=10)
+    parser.add_argument("--max-weights-per-update", type=int, default=10)
     parser.add_argument("--fallback-changed-risk", type=float, default=1.0)
     parser.add_argument("--min-weight", type=float, default=0.0)
     parser.add_argument("--max-weight", type=float, default=1.0)
@@ -46,9 +49,11 @@ def main() -> None:
         # Shared training should learn reusable weights, not memorize individual
         # source/target edges from the current dataset.
         weights["overrides"] = []
+    initial_weights = copy.deepcopy(weights)
     examples = load_training_examples(args)
     if not examples:
         raise SystemExit("No training examples loaded.")
+    print_training_start(args, examples)
 
     history = []
     consecutive_matches = 0
@@ -75,6 +80,7 @@ def main() -> None:
             entry["status"] = "matched"
             history.append(entry)
             consecutive_matches += 1
+            print_progress(args, entry)
             # Stop early only after a full pass where every example already matches
             if consecutive_matches >= len(examples):
                 break
@@ -90,7 +96,7 @@ def main() -> None:
             learning_rate=args.learning_rate,
             max_depth=args.max_depth,
             max_edges=args.max_edges_per_update,
-            max_buckets=args.max_buckets_per_update,
+            max_weights=args.max_weights_per_update,
             min_weight=args.min_weight,
             max_weight=args.max_weight,
             update_scope=args.update_scope,
@@ -98,6 +104,7 @@ def main() -> None:
         entry["status"] = update["status"]
         entry["updates"] = update["updates"]
         history.append(entry)
+        print_progress(args, entry)
 
     final_cases = []
     for example in examples:
@@ -113,6 +120,9 @@ def main() -> None:
 
     aggregate_metrics = aggregate_priority_metrics(final_cases)
     total_updates = sum(len(entry.get("updates", [])) for entry in history)
+    status_counts = Counter(entry.get("status") for entry in history)
+    update_weight_counts = Counter(update_label(update) for entry in history for update in entry.get("updates", []))
+    changed_weights = changed_weight_summary(initial_weights, weights)
     write_json(args.output, weights)
     write_json(args.ranking_output, {
         "datasets": dataset_paths(args),
@@ -133,10 +143,14 @@ def main() -> None:
         "learningRate": args.learning_rate,
         "maxDepth": args.max_depth,
         "topK": args.top_k,
-        "maxBucketsPerUpdate": args.max_buckets_per_update,
+        "maxWeightsPerUpdate": args.max_weights_per_update,
         "maxEdgesPerUpdate": args.max_edges_per_update,
         "trainingExampleCount": len(examples),
+        "exampleSubjects": dict(example_subject_counts(examples)),
         "totalUpdates": total_updates,
+        "statusCounts": dict(status_counts),
+        "updateWeightCounts": dict(update_weight_counts),
+        "changedWeights": changed_weights,
         "metrics": aggregate_metrics,
         "finalCases": [
             {
@@ -149,9 +163,89 @@ def main() -> None:
     })
     print(f"Trained {len(history)} iterations on {len(examples)} examples.")
     print(f"Update scope: {args.update_scope}; updates applied: {total_updates}.")
+    print(f"Iteration statuses: {format_counter(status_counts)}.")
+    print(f"Updated weights: {format_counter(update_weight_counts)}.")
+    print(f"Changed weights: {len(changed_weights)}.")
     print(f"Final top1: {aggregate_metrics['top1Matches']}/{aggregate_metrics['caseCount']} ({aggregate_metrics['top1Accuracy']:.3f}).")
     print(f"Weights written to {args.output}")
     print(f"Summary written to {args.summary}")
+
+
+def print_training_start(args: argparse.Namespace, examples: list[dict[str, Any]]) -> None:
+    """Print the high-signal training configuration before the loop starts."""
+    print(f"Loaded {len(examples)} training examples.")
+    print(f"Example subjects: {format_counter(example_subject_counts(examples))}.")
+    print(
+        "Training config: "
+        f"scope={args.update_scope}, iterations={args.iterations}, "
+        f"learningRate={args.learning_rate}, maxDepth={args.max_depth}, "
+        f"topK={args.top_k}, progressEvery={args.progress_every}"
+    )
+
+
+def print_progress(args: argparse.Namespace, entry: dict[str, Any]) -> None:
+    """Print one compact progress line when requested."""
+    if args.progress_every <= 0:
+        return
+    iteration = int(entry["iteration"])
+    if iteration != 1 and iteration % args.progress_every != 0 and iteration != args.iterations:
+        return
+    metrics = entry.get("metrics", {})
+    updates = entry.get("updates", [])
+    weight_text = ", ".join(update_label(update) for update in updates[:3]) or "-"
+    print(
+        f"[train {iteration:04d}/{args.iterations}] "
+        f"{entry.get('caseId')} status={entry.get('status')} "
+        f"top1={metrics.get('top1Match')} mae={metrics.get('meanAbsoluteRankError')} "
+        f"updates={len(updates)} weights={weight_text}"
+    )
+
+
+def example_subject_counts(examples: list[dict[str, Any]]) -> Counter[str]:
+    """Count examples by subject using the stable case-id prefix."""
+    return Counter(subject_from_case_id(example["caseId"]) for example in examples)
+
+
+def subject_from_case_id(case_id: str) -> str:
+    """Return the project id from '<subject>-mutant-0001'."""
+    return case_id.rsplit("-mutant-", 1)[0] if "-mutant-" in case_id else case_id
+
+
+def update_label(update: dict[str, Any]) -> str:
+    """Return a stable label for one update entry."""
+    group = update.get("weightGroup")
+    name = update.get("weightName")
+    if group and name:
+        return f"{group}.{name}"
+    if update.get("edgeType"):
+        return str(update["edgeType"])
+    return "unknown"
+
+
+def changed_weight_summary(before: dict[str, Any], after: dict[str, Any]) -> list[dict[str, Any]]:
+    """List changed shared weights for quick inspection in the summary."""
+    result = []
+    for group in ("defaults", "callKinds"):
+        before_values = before.get(group, {})
+        after_values = after.get(group, {})
+        for name in sorted(set(before_values) | set(after_values)):
+            old_value = before_values.get(name)
+            new_value = after_values.get(name)
+            if old_value is None or new_value is None or abs(float(old_value) - float(new_value)) > 1e-12:
+                result.append({
+                    "weightGroup": group,
+                    "weightName": name,
+                    "oldWeight": old_value,
+                    "newWeight": new_value,
+                })
+    return result
+
+
+def format_counter(counter: Counter[Any]) -> str:
+    """Format counters in a deterministic compact form."""
+    if not counter:
+        return "-"
+    return ", ".join(f"{key}={value}" for key, value in sorted(counter.items(), key=lambda item: str(item[0])))
 
 
 def load_training_examples(args: argparse.Namespace) -> list[dict[str, Any]]:
@@ -395,7 +489,7 @@ def update_weights_for_mismatch(
     learning_rate: float,
     max_depth: int,
     max_edges: int,
-    max_buckets: int,
+    max_weights: int,
     min_weight: float,
     max_weight: float,
     update_scope: str
@@ -432,14 +526,14 @@ def update_weights_for_mismatch(
             min_weight,
             max_weight
         )
-    return update_shared_weight_buckets(
+    return update_shared_weights(
         weights,
         edge_by_key,
         deltas,
         expected_norm,
         predicted_norm,
         learning_rate,
-        max_buckets,
+        max_weights,
         min_weight,
         max_weight
     )
@@ -477,25 +571,25 @@ def update_edge_overrides(
     return {"status": "updated" if updates else "zero-delta", "updates": updates}
 
 
-def update_shared_weight_buckets(
+def update_shared_weights(
     weights: dict[str, Any],
     edge_by_key: dict[tuple[str, str, str], dict[str, Any]],
     deltas: list[tuple[tuple[str, str, str], float]],
     expected_norm: dict[tuple[str, str, str], float],
     predicted_norm: dict[tuple[str, str, str], float],
     learning_rate: float,
-    max_buckets: int,
+    max_weights: int,
     min_weight: float,
     max_weight: float
 ) -> dict[str, Any]:
-    """Aggregate edge support deltas into reusable callKind/default buckets."""
-    bucket_deltas: dict[tuple[str, str], dict[str, Any]] = {}
+    """Aggregate edge support deltas into reusable callKind/default weights."""
+    weight_deltas: dict[tuple[str, str], dict[str, Any]] = {}
     for key, delta in deltas:
         edge = edge_by_key[key]
-        bucket = weight_bucket(edge)
-        if bucket is None:
+        shared_key = shared_weight_key(edge)
+        if shared_key is None:
             continue
-        entry = bucket_deltas.setdefault(bucket, {
+        entry = weight_deltas.setdefault(shared_key, {
             "delta": 0.0,
             "expectedSupport": 0.0,
             "predictedSupport": 0.0,
@@ -508,20 +602,20 @@ def update_shared_weight_buckets(
 
     ordered = [
         item
-        for item in sorted(bucket_deltas.items(), key=lambda item: abs(item[1]["delta"]), reverse=True)
+        for item in sorted(weight_deltas.items(), key=lambda item: abs(item[1]["delta"]), reverse=True)
         if abs(item[1]["delta"]) > 1e-12
     ]
     updates = []
-    for bucket, entry in ordered[:max_buckets]:
-        old_weight = shared_weight(weights, bucket)
+    for shared_key, entry in ordered[:max_weights]:
+        old_weight = shared_weight(weights, shared_key)
         new_weight = clamp(old_weight + (learning_rate * entry["delta"]), min_weight, max_weight)
         if abs(new_weight - old_weight) <= 1e-12:
             continue
-        set_shared_weight(weights, bucket, new_weight)
+        set_shared_weight(weights, shared_key, new_weight)
         updates.append({
             "scope": "shared",
-            "weightGroup": bucket[0],
-            "weightName": bucket[1],
+            "weightGroup": shared_key[0],
+            "weightName": shared_key[1],
             "oldWeight": old_weight,
             "newWeight": new_weight,
             "delta": entry["delta"],
@@ -592,29 +686,29 @@ def set_edge_override(weights: dict[str, Any], edge: dict[str, Any], value: floa
     })
 
 
-def weight_bucket(edge: dict[str, Any]) -> tuple[str, str] | None:
+def shared_weight_key(edge: dict[str, Any]) -> tuple[str, str] | None:
     """Map an edge to the shared Java weight that controls it."""
     edge_type = edge.get("edgeType")
     call_kind = edge.get("callKind")
-    if edge_type == "CALL_IMPACT" and call_kind:
+    if edge_type == "CALL_IMPACT" and call_kind in TRAINABLE_CALL_KINDS:
         return "callKinds", str(call_kind)
     if edge_type:
         return "defaults", str(edge_type)
     return None
 
 
-def shared_weight(weights: dict[str, Any], bucket: tuple[str, str]) -> float:
-    """Read a shared bucket weight with the same fallback as Java/Python."""
-    group, name = bucket
+def shared_weight(weights: dict[str, Any], shared_key: tuple[str, str]) -> float:
+    """Read a shared callKind/default weight with the same fallback as Java/Python."""
+    group, name = shared_key
     if group == "callKinds":
         fallback = weights.get("defaults", {}).get("CALL_IMPACT", 0.75)
         return float(weights.get("callKinds", {}).get(name, fallback))
     return float(weights.get("defaults", {}).get(name, 1.0))
 
 
-def set_shared_weight(weights: dict[str, Any], bucket: tuple[str, str], value: float) -> None:
-    """Write a shared callKind/default bucket weight."""
-    group, name = bucket
+def set_shared_weight(weights: dict[str, Any], shared_key: tuple[str, str], value: float) -> None:
+    """Write a shared callKind/default weight."""
+    group, name = shared_key
     if group == "callKinds":
         weights.setdefault("callKinds", {})[name] = value
         return
@@ -636,6 +730,11 @@ def ensure_java_weight_shape(weights: dict[str, Any]) -> dict[str, Any]:
         }
     weights.setdefault("defaults", {})
     weights.setdefault("callKinds", {})
+    weights["callKinds"] = {
+        call_kind: weight
+        for call_kind, weight in weights["callKinds"].items()
+        if call_kind in TRAINABLE_CALL_KINDS
+    }
     weights.setdefault("overrides", [])
     for call_kind in CALL_KINDS:
         weights["callKinds"].setdefault(call_kind, weights["defaults"].get("CALL_IMPACT", 0.75))

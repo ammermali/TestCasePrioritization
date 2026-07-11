@@ -82,7 +82,18 @@ public class ImpactGraphBuilder {
      */
     public ImpactGraph build(Path repositoryPath, Path projectPath, Collection<ChangedMethod> changedMethods, Collection<Path> coverageReports)
             throws IOException {
-        ParsedProject parsedProject = parseProject(repositoryPath, projectPath);
+        return build(repositoryPath, projectPath, changedMethods, coverageReports, null, null);
+    }
+
+    public ImpactGraph build(
+            Path repositoryPath,
+            Path projectPath,
+            Collection<ChangedMethod> changedMethods,
+            Collection<Path> coverageReports,
+            Path sourceClassesDir,
+            Path sourceTestsDir
+    ) throws IOException {
+        ParsedProject parsedProject = parseProject(repositoryPath, projectPath, sourceClassesDir, sourceTestsDir);
 
         // keep both exact and loose id. JavaParser resolution may use qualified type names
         Map<MethodId, ParsedMethod> methodsById = new LinkedHashMap<>();
@@ -135,15 +146,21 @@ public class ImpactGraphBuilder {
         return new EdgeWeightApplier().apply(graph, config);
     }
 
-    private ParsedProject parseProject(Path repositoryPath, Path projectPath) throws IOException {
+    private ParsedProject parseProject(Path repositoryPath, Path projectPath, Path sourceClassesDir, Path sourceTestsDir) throws IOException {
         // parse main and test source roots with the same symbol solver so tests can resolve project methods
-        List<Path> sourceRoots = ProjectJavaSources.existingJavaRoots(repositoryPath, projectPath);
+        List<Path> sourceRoots = ProjectJavaSources.existingJavaRoots(repositoryPath, projectPath, sourceClassesDir, sourceTestsDir);
+        Path testJavaRoot = ProjectJavaSources.sourceRootOrDefault(
+                repositoryPath,
+                projectPath,
+                sourceTestsDir,
+                ProjectJavaSources.testJavaRoot(repositoryPath, projectPath)
+        );
         JavaParser parser = factory.create(sourceRoots);
         List<ParsedMethod> methods = new ArrayList<>();
         Map<String, TypeInfo> types = new LinkedHashMap<>();
 
         for(Path sourceRoot : sourceRoots){
-            boolean testSource = sourceRoot.equals(ProjectJavaSources.testJavaRoot(repositoryPath, projectPath));
+            boolean testSource = sourceRoot.equals(testJavaRoot);
             for(Path javaFile : ProjectJavaSources.listJavaFiles(sourceRoot)){
                 ParseResult<CompilationUnit> parseResult = parser.parse(javaFile);
                 if(parseResult.getResult().isEmpty()){

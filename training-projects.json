@@ -1,0 +1,79 @@
+{
+  "autoDiscover": true,
+  "defaults": {
+    "enabled": true
+  },
+  "projects": [
+    {
+      "subject": "apache_commons-codec",
+      "mainPackage": "org.apache.commons.codec.*",
+      "testPackage": "org.apache.commons.codec.*"
+    },
+    {
+      "subject": "apache_commons-collections",
+      "mainPackage": "org.apache.commons.collections4.*",
+      "testPackage": "org.apache.commons.collections4.*"
+    },
+    {
+      "subject": "apache_commons-io",
+      "mainPackage": "org.apache.commons.io.*",
+      "testPackage": "org.apache.commons.io.*"
+    },
+    {
+      "subject": "apache_commons-lang",
+      "mainPackage": "org.apache.commons.lang3.*",
+      "testPackage": "org.apache.commons.lang3.*"
+    },
+    {
+      "subject": "apache_commons-text",
+      "mainPackage": "org.apache.commons.text.*",
+      "testPackage": "org.apache.commons.text.*"
+    },
+    {
+      "subject": "apache_commons-validator",
+      "mainPackage": "org.apache.commons.validator.*",
+      "testPackage": "org.apache.commons.validator.*"
+    },
+    {
+      "subject": "asterisk-java_asterisk-java",
+      "mainPackage": "org.asteriskjava.*",
+      "testPackage": "org.asteriskjava.*"
+    },
+    {
+      "subject": "Bukkit_Bukkit",
+      "mainPackage": "org.bukkit.*",
+      "testPackage": "org.bukkit.*"
+    },
+    {
+      "subject": "frizbog_gedcom4j",
+      "mainPackage": "org.folg.gedcom.*",
+      "testPackage": "org.folg.gedcom.*"
+    },
+    {
+      "subject": "google_gson",
+      "projectPath": "gson",
+      "mainPackage": "com.google.gson.*",
+      "testPackage": "com.google.gson.*"
+    },
+    {
+      "subject": "jhy_jsoup",
+      "mainPackage": "org.jsoup.*",
+      "testPackage": "org.jsoup.*"
+    },
+    {
+      "subject": "jodaorg_joda-time",
+      "mainPackage": "org.joda.time.*",
+      "testPackage": "org.joda.time.*"
+    },
+    {
+      "subject": "mikera_vectorz",
+      "mainPackage": "mikera.vectorz.*",
+      "testPackage": "mikera.vectorz.*"
+    },
+    {
+      "subject": "zeroturnaround_zt-exec",
+      "mainPackage": "org.zeroturnaround.exec.*",
+      "testPackage": "org.zeroturnaround.exec.*"
+    }
+  ]
+}

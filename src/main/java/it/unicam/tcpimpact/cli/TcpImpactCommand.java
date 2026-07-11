@@ -1,7 +1,10 @@
 package it.unicam.tcpimpact.cli;
 import it.unicam.tcpimpact.coverage.optimized.PerTestCoverageRunner;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.type.TypeReference;
 import it.unicam.tcpimpact.coverage.TestCaseId;
+import it.unicam.tcpimpact.coverage.TestDiscoverer;
+import it.unicam.tcpimpact.coverage.optimized.JacocoReportGenerator;
 import it.unicam.tcpimpact.git.GitRepositoryValidator;
 import it.unicam.tcpimpact.graph.ImpactGraphBuilder;
 import it.unicam.tcpimpact.graph.ParserFactory;
@@ -11,6 +14,7 @@ import it.unicam.tcpimpact.model.MethodId;
 import it.unicam.tcpimpact.model.MethodRange;
 import it.unicam.tcpimpact.parser.ChangedMethodDetector;
 import it.unicam.tcpimpact.parser.RevisionMethodExtractor;
+import it.unicam.tcpimpact.priority.TestPriorityRanker;
 import it.unicam.tcpimpact.risk.RiskPropagator;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -37,7 +41,7 @@ import it.unicam.tcpimpact.git.DiffExtractor;
         name = "tcp-impact",
         mixinStandardHelpOptions = true,
         version = "tcp-impact 0.1.0",
-        description = "Prototype tool for Git-aware test case prioritization"
+        description = "Runs TCP Impact prioritization for a Git diff and writes a ranked test list."
 )
 
 
@@ -77,19 +81,98 @@ public class TcpImpactCommand implements Callable<Integer> {
     )
     private Path projectPath;
 
-    // option to coverage all present tests in a project
+    @Option(
+            names = "--output",
+            description = "Priority ranking JSON output path. Relative paths are resolved inside the analyzed project."
+    )
+    private Path output;
+
+    @Option(
+            names = "--graph-output",
+            description = "Optional impact graph JSON output path. Relative paths are resolved inside the analyzed project."
+    )
+    private Path graphOutput;
+
+    @Option(
+            names = "--coverage-dir",
+            description = "Optional directory containing JaCoCo XML coverage reports."
+    )
+    private Path coverageDir;
+
+    @Option(
+            names = "--source-classes-dir",
+            description = "Production Java source root relative to --project-path. Useful for non-standard layouts."
+    )
+    private Path sourceClassesDir;
+
+    @Option(
+            names = "--source-tests-dir",
+            description = "Test Java source root relative to --project-path. Useful for non-standard layouts."
+    )
+    private Path sourceTestsDir;
+
+    @Option(
+            names = "--max-depth",
+            defaultValue = "4",
+            description = "Maximum propagation depth for priority ranking."
+    )
+    private int maxDepth;
+
     @Option(
             names = "--coverage-all-tests",
-            description = "Runs each discovered JUnit test separately and generates one JaCoCo report per test."
+            hidden = true,
+            description = "Internal legacy Gradle coverage mode."
     )
     private boolean coverageAllTests;
 
-    // option to build and export the project impact graph
     @Option(
             names = "--impact-graph-output",
-            description = "Builds the project impact graph and saves it as JSON inside the analyzed project's .tcpimpact directory."
+            hidden = true,
+            description = "Internal legacy graph output path inside .tcpimpact."
     )
     private Path impactGraphOutput;
+
+    @Option(
+            names = "--priority-ranking-output",
+            hidden = true,
+            description = "Internal legacy ranking output path inside .tcpimpact."
+    )
+    private Path priorityRankingOutput;
+
+    @Option(
+            names = "--discover-tests-output",
+            hidden = true,
+            description = "Writes discovered JUnit test methods as JSON inside the analyzed project's .tcpimpact directory."
+    )
+    private Path discoverTestsOutput;
+
+    @Option(
+            names = "--jacoco-exec-dir",
+            hidden = true,
+            description = "Directory containing per-test JaCoCo .exec files to convert to XML."
+    )
+    private Path jacocoExecDir;
+
+    @Option(
+            names = "--jacoco-report-map",
+            hidden = true,
+            description = "JSON object mapping .exec file names to JaCoCo report names."
+    )
+    private Path jacocoReportMap;
+
+    @Option(
+            names = "--jacoco-classes-dir",
+            hidden = true,
+            description = "Compiled production classes directory used when converting JaCoCo .exec files."
+    )
+    private Path jacocoClassesDir;
+
+    @Option(
+            names = "--jacoco-xml-output-dir",
+            hidden = true,
+            description = "Directory where converted JaCoCo XML reports are written."
+    )
+    private Path jacocoXmlOutputDir;
 
     /**
      * Executes the command.
@@ -118,8 +201,12 @@ public class TcpImpactCommand implements Callable<Integer> {
 
         System.out.println("Git repository validated");
 
+        if(jacocoExecDir != null || jacocoReportMap != null || jacocoClassesDir != null || jacocoXmlOutputDir != null){
+            return runJacocoExecConversionMode();
+        }
+        if(discoverTestsOutput != null){ return runTestDiscoveryMode(); }
         if(coverageAllTests){ return runPerTestCoverageMode(); }
-        if(impactGraphOutput != null){ return runImpactGraphExportMode(); }
+        if(shouldRunTcpPrioritization()){ return runTcpPrioritizationMode(); }
 
         DiffExtractor diffExtractor = new DiffExtractor();
 
@@ -283,66 +370,174 @@ public class TcpImpactCommand implements Callable<Integer> {
         }
     }
 
-    private Integer runImpactGraphExportMode() {
+    private boolean shouldRunTcpPrioritization() {
+        return output != null
+                || graphOutput != null
+                || impactGraphOutput != null
+                || priorityRankingOutput != null;
+    }
+
+    private Integer runTestDiscoveryMode() {
+        try {
+            Path projectRoot = repoPath.resolve(projectPath).toAbsolutePath().normalize();
+            Path testRoot = sourceTestsDir == null ? Path.of("src/test/java") : sourceTestsDir;
+            List<TestCaseId> tests = new TestDiscoverer().discoverTests(projectRoot, testRoot);
+            Path outputPath = resolveTcpImpactOutputPath(discoverTestsOutput, "discovered-tests.json", "--discover-tests-output");
+            saveJson(Map.of(
+                    "repo", repoPath.toAbsolutePath().normalize().toString(),
+                    "projectPath", projectPath.toString(),
+                    "sourceTestsDir", testRoot.toString(),
+                    "testCount", tests.size(),
+                    "tests", tests.stream().map(this::testDiscoveryPayload).toList()
+            ), outputPath);
+            System.out.println("Discovered test methods: " + tests.size());
+            System.out.println("Output: " + outputPath);
+            return 0;
+        } catch (Exception e) {
+            System.err.println("Unable to discover test methods.");
+            System.err.println(e.getMessage());
+            return 1;
+        }
+    }
+
+    private Map<String, Object> testDiscoveryPayload(TestCaseId testCase) {
+        return Map.of(
+                "testId", testCase.className() + "::" + testCase.methodName(),
+                "reportName", testCase.className() + "." + testCase.methodName()
+        );
+    }
+
+    private Integer runTcpPrioritizationMode() {
         try {
             ParserFactory parserFactory = new ParserFactory();
             DiffExtractor diffExtractor = new DiffExtractor();
             List<ChangedJavaFile> changedJavaFiles = diffExtractor.extractChangedJavaFiles(repoPath, baseRevision, headRevision);
             List<ChangedMethod> changedMethods = detectChangedMethods(changedJavaFiles);
             List<Path> coverageReports = discoverCoverageReports();
-            ImpactGraph impactGraph = new ImpactGraphBuilder(parserFactory).build(repoPath, projectPath, changedMethods, coverageReports);
-            impactGraph = new RiskPropagator().propagate(impactGraph);
-            Path outputPath = resolveImpactGraphOutputPath();
-            saveJson(impactGraph, outputPath);
+            ImpactGraph impactGraph = new ImpactGraphBuilder(parserFactory).build(
+                    repoPath,
+                    projectPath,
+                    changedMethods,
+                    coverageReports,
+                    sourceClassesDir,
+                    sourceTestsDir
+            );
+            impactGraph = new RiskPropagator().propagate(impactGraph, maxDepth);
+            Path graphPath = resolveGraphOutputPath();
+            if(graphPath != null){
+                saveJson(impactGraph, graphPath);
+            }
+            Path rankingPath = null;
+            if(output != null){
+                rankingPath = resolveProjectOutputPath(output);
+                saveJson(priorityRankingPayload(impactGraph, changedMethods), rankingPath);
+            } else if(priorityRankingOutput != null){
+                rankingPath = resolveTcpImpactOutputPath(priorityRankingOutput, "priority-ranking.json", "--priority-ranking-output");
+                saveJson(priorityRankingPayload(impactGraph, changedMethods), rankingPath);
+            }
 
             System.out.println();
-            System.out.println("Impact graph generated:");
+            System.out.println("TCP Impact prioritization completed:");
             System.out.println("- Method nodes: " + impactGraph.nodes().size());
             System.out.println("- Impact edges: " + impactGraph.edges().size());
             System.out.println("- Changed methods mapped: " + changedMethods.size());
             System.out.println("- Coverage reports parsed: " + coverageReports.size());
-            System.out.println("- Output: " + outputPath);
+            System.out.println("- Max depth: " + maxDepth);
+            if(graphPath != null){
+                System.out.println("- Graph: " + graphPath);
+            }
+            if(rankingPath != null){
+                System.out.println("- Ranking: " + rankingPath);
+            }
             return 0;
         } catch (Exception e) {
-            System.err.println("Unable to generate or save the impact graph.");
+            System.err.println("Unable to run TCP Impact prioritization.");
             System.err.println(e.getMessage());
             return 1;
         }
     }
 
-    private Path resolveImpactGraphOutputPath() {
+    private Path resolveGraphOutputPath() {
+        if(graphOutput != null){
+            return resolveProjectOutputPath(graphOutput);
+        }
+        if(impactGraphOutput != null){
+            return resolveTcpImpactOutputPath(impactGraphOutput, "impact-graph.json", "--impact-graph-output");
+        }
+        if(priorityRankingOutput != null){
+            return resolveTcpImpactOutputPath(Path.of("impact-graph.json"), "impact-graph.json", "--impact-graph-output");
+        }
+        return null;
+    }
+
+    private Map<String, Object> priorityRankingPayload(ImpactGraph impactGraph, List<ChangedMethod> changedMethods) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("repo", repoPath.toAbsolutePath().normalize().toString());
+        payload.put("projectPath", projectPath.toString());
+        payload.put("base", baseRevision);
+        payload.put("head", headRevision);
+        payload.put("maxDepth", maxDepth);
+        payload.put("sourceClassesDir", sourceClassesDir == null ? null : sourceClassesDir.toString());
+        payload.put("sourceTestsDir", sourceTestsDir == null ? null : sourceTestsDir.toString());
+        payload.put("changedMethods", changedMethods.stream().map(this::changedMethodPayload).toList());
+        payload.put("rankedTests", new TestPriorityRanker().rank(impactGraph));
+        return payload;
+    }
+
+    private Map<String, Object> changedMethodPayload(ChangedMethod changedMethod) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("methodId", changedMethod.methodRange().methodId().toString());
+        payload.put("path", changedMethod.methodRange().path().toString());
+        payload.put("startLine", changedMethod.methodRange().start());
+        payload.put("endLine", changedMethod.methodRange().end());
+        payload.put("changedLines", changedMethod.changedLines());
+        return payload;
+    }
+
+    private Path resolveTcpImpactOutputPath(Path requestedOutput, String defaultFileName, String optionName) {
         Path tcpImpactDir = repoPath
                 .resolve(projectPath)
                 .toAbsolutePath()
                 .normalize()
                 .resolve(".tcpimpact")
                 .normalize();
-        Path relativeOutput = normalizeImpactGraphOutput();
+        Path relativeOutput = normalizeTcpImpactOutput(requestedOutput, defaultFileName, optionName);
         Path outputPath = tcpImpactDir.resolve(relativeOutput).normalize();
         if(!outputPath.startsWith(tcpImpactDir)){
-            throw new IllegalArgumentException("--impact-graph-output must stay inside the analyzed project's .tcpimpact directory.");
+            throw new IllegalArgumentException(optionName + " must stay inside the analyzed project's .tcpimpact directory.");
         }
         return outputPath;
     }
 
-    private Path normalizeImpactGraphOutput() {
-        Path normalizedOutput = impactGraphOutput.normalize();
+    private Path normalizeTcpImpactOutput(Path requestedOutput, String defaultFileName, String optionName) {
+        Path normalizedOutput = requestedOutput.normalize();
         if(normalizedOutput.isAbsolute()){
-            throw new IllegalArgumentException("--impact-graph-output must be a file name or relative path inside .tcpimpact.");
+            throw new IllegalArgumentException(optionName + " must be a file name or relative path inside .tcpimpact.");
         }
-        Path impactGraphPath = Path.of("impact-graph.json");
+        Path defaultPath = Path.of(defaultFileName);
 
         if(normalizedOutput.getNameCount() == 0 || normalizedOutput.toString().isBlank() || normalizedOutput.toString().equals(".")){
-            return impactGraphPath;
+            return defaultPath;
         }
 
         if(normalizedOutput.getName(0).toString().equals(".tcpimpact")){
             if(normalizedOutput.getNameCount() == 1){
-                return impactGraphPath;
+                return defaultPath;
             }
             return normalizedOutput.subpath(1, normalizedOutput.getNameCount());
         }
         return normalizedOutput;
+    }
+
+    private Path resolveProjectOutputPath(Path requestedOutput) {
+        if(requestedOutput.isAbsolute()){
+            return requestedOutput.toAbsolutePath().normalize();
+        }
+        return repoPath
+                .resolve(projectPath)
+                .resolve(requestedOutput)
+                .toAbsolutePath()
+                .normalize();
     }
 
     private void saveJson(Object payload, Path outputPath) throws IOException {
@@ -362,7 +557,9 @@ public class TcpImpactCommand implements Callable<Integer> {
                 .normalize();
         Path optimizedXmlDir = tcpImpactDir.resolve("per-test-coverage").resolve("xml");
         Path legacyCoverageDir = tcpImpactDir.resolve("per-test-coverage");
-        List<Path> coverageRoots = List.of(optimizedXmlDir, legacyCoverageDir);
+        List<Path> coverageRoots = coverageDir == null
+                ? List.of(optimizedXmlDir, legacyCoverageDir)
+                : List.of(resolveProjectRelativePath(coverageDir), optimizedXmlDir, legacyCoverageDir);
         List<Path> reports = new ArrayList<>();
         for(Path coverageRoot : coverageRoots){
             if(!Files.exists(coverageRoot)){
@@ -375,6 +572,56 @@ public class TcpImpactCommand implements Callable<Integer> {
             }
         }
         return reports.stream().distinct().toList();
+    }
+
+    private Integer runJacocoExecConversionMode() {
+        try {
+            if(jacocoExecDir == null || jacocoReportMap == null || jacocoClassesDir == null || jacocoXmlOutputDir == null){
+                throw new IllegalArgumentException("--jacoco-exec-dir, --jacoco-report-map, --jacoco-classes-dir, and --jacoco-xml-output-dir are required together.");
+            }
+            Path execDir = resolveProjectRelativePath(jacocoExecDir);
+            Path reportMapPath = resolveProjectRelativePath(jacocoReportMap);
+            Path classesDir = resolveProjectRelativePath(jacocoClassesDir);
+            Path xmlOutputDir = resolveProjectRelativePath(jacocoXmlOutputDir);
+            Map<String, String> reportNames = OBJECT_MAPPER.readValue(reportMapPath.toFile(), new TypeReference<>() {});
+            JacocoReportGenerator reportGenerator = new JacocoReportGenerator();
+
+            int converted = 0;
+            for(Map.Entry<String, String> entry : reportNames.entrySet()){
+                Path execFile = execDir.resolve(entry.getKey()).normalize();
+                if(!Files.exists(execFile)){
+                    System.err.println("Warning: missing JaCoCo exec file: " + execFile);
+                    continue;
+                }
+                String reportName = entry.getValue();
+                Path xmlReport = xmlOutputDir.resolve(safeFileName(reportName) + ".xml").normalize();
+                reportGenerator.generateXmlReport(execFile, classesDir, xmlReport, reportName);
+                converted++;
+            }
+
+            System.out.println("Converted JaCoCo exec files: " + converted);
+            System.out.println("XML output: " + xmlOutputDir);
+            return 0;
+        } catch (Exception e) {
+            System.err.println("Unable to convert JaCoCo exec files.");
+            System.err.println(e.getMessage());
+            return 1;
+        }
+    }
+
+    private Path resolveProjectRelativePath(Path path) {
+        if(path.isAbsolute()){
+            return path.toAbsolutePath().normalize();
+        }
+        return repoPath
+                .resolve(projectPath)
+                .resolve(path)
+                .toAbsolutePath()
+                .normalize();
+    }
+
+    private String safeFileName(String value) {
+        return value.replaceAll("[^a-zA-Z0-9_-]", "_");
     }
 
 }

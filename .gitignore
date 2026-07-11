@@ -1,42 +1,75 @@
+# Build outputs
 target/
+build/
+out/
+dist/
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
-
-### IntelliJ IDEA ###
-*.iws
-*.iml
-*.ipr
-.idea/*
-
-### Eclipse ###
-.apt_generated
-.classpath
-.factorypath
-.project
-.settings
-.springBeans
-.sts4-cache
-
-### NetBeans ###
-/nbproject/private/
-/nbbuild/
-/dist/
-/nbdist/
-/.nb-gradle/
-build/
 !**/src/main/**/build/
 !**/src/test/**/build/
 
-### VS Code ###
+# IDE and editor metadata
+*.iws
+*.iml
+*.ipr
+.idea/
 .vscode/
 .vs/
+.apt_generated/
+.classpath
+.factorypath
+.project
+.settings/
+.springBeans
+.sts4-cache/
+/nbproject/private/
+/nbbuild/
+/nbdist/
+/.nb-gradle/
 
-### Mac OS ###
+# OS files
 .DS_Store
+Thumbs.db
+
+# Python caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# Local environment
+.env
+.env.*
+
+# Logs and temporary coverage artifacts
+*.log
+*.tmp
+*.temp
+*.exec
+.tcpimpact/
+**/.tcpimpact/
+
+# Generated training artifacts
+/training/graphs/
+/training/priority-datasets/
+/training/runs/
+/training/**/all-projects-dataset.json
+/training/**/priority-queue-*.json
+/training/**/run-report.json
+/training/**/run-report.md
+/training/**/splits/
+
+# Generated Defects4J evaluation artifacts
+/model-evaluation/runs/
+/model-evaluation/work/
+/model-evaluation/coverage-cache/
+/model-evaluation/recovered/
+
+# Local/unpackaged resources
 /extension-module/
 /lib/
 
 # In src/main/resources: ignore everything except tcpimpact-agents
-/src/main/resources/Hackahub-IdS-2025-2026
+/src/main/resources/Hackahub-IdS-2025-2026/
 !src/main/resources/tcpimpact-agents/

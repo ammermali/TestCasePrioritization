@@ -14,6 +14,10 @@ public class RiskPropagator {
     private static final int DEFAULT_MAX_DEPTH = 4;
 
     public ImpactGraph propagate(ImpactGraph graph) {
+        return propagate(graph, DEFAULT_MAX_DEPTH);
+    }
+
+    public ImpactGraph propagate(ImpactGraph graph, int maxDepth) {
         Map<MethodId, Double> initialRiskValues = new LinkedHashMap<>();
         for(MethodNode node : graph.nodes()){
             double initialRisk = Math.max(node.initialRiskValue(), node.propagatedRiskScore());
@@ -21,7 +25,7 @@ public class RiskPropagator {
                 initialRiskValues.put(node.id(), initialRisk);
             }
         }
-        Map<MethodId, Double> scores = propagateScores(graph, initialRiskValues, DEFAULT_MAX_DEPTH);
+        Map<MethodId, Double> scores = propagateScores(graph, initialRiskValues, maxDepth);
 
         Set<MethodNode> propagatedNodes = new LinkedHashSet<>();
         for(MethodNode node : graph.nodes()){

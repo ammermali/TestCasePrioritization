@@ -42,7 +42,13 @@ public class TestDiscoverer {
      */
 
     public List<TestCaseId> discoverTests(Path gradleProjectPath) throws IOException {
-        Path testSourceRoot = gradleProjectPath.resolve("src/test/java");
+        return discoverTests(gradleProjectPath, Path.of("src/test/java"));
+    }
+
+    public List<TestCaseId> discoverTests(Path projectPath, Path testSourceRootPath) throws IOException {
+        Path testSourceRoot = testSourceRootPath.isAbsolute()
+                ? testSourceRootPath.toAbsolutePath().normalize()
+                : projectPath.resolve(testSourceRootPath).toAbsolutePath().normalize();
 
         if(!Files.exists(testSourceRoot))
             return List.of();

@@ -1,5 +1,6 @@
 package it.unicam.tcpimpact.weights;
 
+import it.unicam.tcpimpact.graph.model.CallKind;
 import it.unicam.tcpimpact.graph.model.ImpactEdge;
 import it.unicam.tcpimpact.graph.model.ImpactEdgeType;
 import it.unicam.tcpimpact.graph.model.ImpactGraph;
@@ -22,19 +23,30 @@ public class EdgeWeightApplier {
         return new ImpactGraph(graph.nodes(), weightedEdges);
     }
 
-    private double resolveWeight(ImpactEdge edge, EdgeWeightConfig config, Map<EdgeKey, Double> overrides) {
+    private double resolveWeight(
+            ImpactEdge edge,
+            EdgeWeightConfig config,
+            Map<EdgeKey, Double> overrides
+    ) {
         EdgeKey key = EdgeKey.from(edge);
         Double override = overrides.get(key);
         if(override != null){
             return override;
         }
-        if(edge.callKind() != null){
+        if(edge.callKind() != null && isTrainableCallKind(edge.callKind())){
             Double callKindWeight = config.callKinds().get(edge.callKind());
             if(callKindWeight != null){
                 return callKindWeight;
             }
         }
         return Optional.ofNullable(config.defaults().get(edge.edgeType())).orElse(edge.weight());
+    }
+
+    private boolean isTrainableCallKind(CallKind callKind) {
+        return callKind == CallKind.NORMAL
+                || callKind == CallKind.CONSTRUCTOR
+                || callKind == CallKind.PRIVATE
+                || callKind == CallKind.SUPER;
     }
 
     private Map<EdgeKey, Double> specificOverrides(EdgeWeightConfig config) {

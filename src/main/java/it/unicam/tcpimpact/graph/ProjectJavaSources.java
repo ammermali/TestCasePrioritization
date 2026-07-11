@@ -2,6 +2,7 @@ package it.unicam.tcpimpact.graph;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -45,6 +46,35 @@ final class ProjectJavaSources {
                 .stream()
                 .filter(Files::exists)
                 .toList();
+    }
+
+    static List<Path> existingJavaRoots(
+            Path repositoryPath,
+            Path projectPath,
+            Path sourceClassesDir,
+            Path sourceTestsDir
+    ) {
+        List<Path> roots = new ArrayList<>();
+        roots.add(sourceRootOrDefault(repositoryPath, projectPath, sourceClassesDir, mainJavaRoot(repositoryPath, projectPath)));
+        roots.add(sourceRootOrDefault(repositoryPath, projectPath, sourceTestsDir, testJavaRoot(repositoryPath, projectPath)));
+        return roots.stream()
+                .filter(Files::exists)
+                .distinct()
+                .toList();
+    }
+
+    static Path sourceRootOrDefault(Path repositoryPath, Path projectPath, Path configuredRoot, Path defaultRoot) {
+        if(configuredRoot == null){
+            return defaultRoot;
+        }
+        if(configuredRoot.isAbsolute()){
+            return configuredRoot.toAbsolutePath().normalize();
+        }
+        return repositoryPath
+                .resolve(projectPath)
+                .resolve(configuredRoot)
+                .toAbsolutePath()
+                .normalize();
     }
 
     /**

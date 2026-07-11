@@ -3,6 +3,7 @@
 from __future__ import annotations
 import argparse
 import copy
+import re
 import shutil
 import xml.etree.ElementTree as ET
 from collections import defaultdict, deque
@@ -25,6 +26,9 @@ PRIMITIVE_TYPES = {
     "Z": "boolean",
     "V": "void",
 }
+
+JUNIT_UNIQUE_ID_SEGMENT = re.compile(r"\[(?P<kind>[a-zA-Z-]+):(?P<value>[^\]]+)\]")
+JUNIT_METHOD_SEGMENTS = {"method", "test-method", "test-template", "test-factory"}
 
 
 def main() -> None:
@@ -272,6 +276,9 @@ def killing_tests_from_xml(element: ET.Element) -> list[str]:
 def normalize_test_id(value: Any) -> str:
     """Convert PIT/JUnit test names into the graph's Class#method() shape."""
     text_value = str(value).strip()
+    junit_id = normalize_junit_unique_id(text_value)
+    if junit_id:
+        return junit_id
     if "#" in text_value:
         return text_value if text_value.endswith(")") else text_value + "()"
     if "(" in text_value and text_value.endswith(")"):
@@ -282,6 +289,34 @@ def normalize_test_id(value: Any) -> str:
         class_name, method_name = text_value.rsplit(".", 1)
         return f"{class_name}#{method_name}()"
     return text_value
+
+
+def normalize_junit_unique_id(value: str) -> str | None:
+    """Extract Class#method() from PIT's JUnit 5 unique-id descriptors."""
+    if "[engine:junit-jupiter]" not in value and "[class:" not in value:
+        return None
+
+    class_name = None
+    method_value = None
+    for match in JUNIT_UNIQUE_ID_SEGMENT.finditer(value):
+        kind = match.group("kind")
+        segment_value = match.group("value")
+        if kind == "class":
+            class_name = segment_value
+        elif kind in JUNIT_METHOD_SEGMENTS:
+            method_value = segment_value
+
+    if not method_value:
+        return None
+    if "#" in method_value:
+        return method_value if method_value.endswith(")") else method_value + "()"
+    if not class_name:
+        prefix = value.split("[engine:", 1)[0].rstrip("./")
+        class_name = prefix if prefix else None
+    if not class_name:
+        return None
+    method_name = method_value if "(" in method_value else f"{method_value}()"
+    return f"{class_name}#{method_name}"
 
 
 def signature_keys(method_id: str) -> tuple[str, str | None, str]:
