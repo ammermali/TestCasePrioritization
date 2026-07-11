@@ -153,16 +153,3 @@ are reused instead of recomputing coverage.
 
 Use `--coverage none` only for a fast smoke test. Full evaluation should use
 `--coverage all`.
-
-## Generated Files
-
-The repository ignores generated files such as:
-
-- Maven and IDE build outputs;
-- Python cache files;
-- training runs and derived datasets;
-- Defects4J evaluation runs and work directories;
-- JaCoCo `.exec` files and `.tcpimpact` directories.
-
-This keeps the repository focused on source code, configuration, and reusable
-entrypoints.
